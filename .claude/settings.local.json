@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(superpowers:brainstorming)",
+      "Bash(\"C:/Users/Administrator/.claude/plugins/cache/frad-dotclaude/superpowers/2.0.0/scripts/setup-superpower-loop.sh\" \"Brainstorm: 设计招标信息爬取与分析全栈应用\" --completion-promise \"BRAINSTORMING_COMPLETE\" --max-iterations 50)"
+    ]
+  }
+}
