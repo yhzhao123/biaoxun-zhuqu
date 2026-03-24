@@ -6,12 +6,18 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import type { Statistics, CrawlTask } from '../types';
-import { api } from '../services/api';
+import { api, type TrendData, type DistributionData } from '../services/api';
+import { TrendChart } from '../components/TrendChart';
+import { DistributionChart } from '../components/DistributionChart';
 
 export const DashboardPage: React.FC = () => {
   const [stats, setStats] = useState<Statistics | null>(null);
   const [tasks, setTasks] = useState<CrawlTask[]>([]);
+  const [trendData, setTrendData] = useState<TrendData[]>([]);
+  const [regionData, setRegionData] = useState<DistributionData[]>([]);
+  const [industryData, setIndustryData] = useState<DistributionData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [chartsLoading, setChartsLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -29,7 +35,26 @@ export const DashboardPage: React.FC = () => {
       }
     };
 
+    const fetchChartData = async () => {
+      setChartsLoading(true);
+      try {
+        const [trend, regions, industries] = await Promise.all([
+          api.getTrendData(30),
+          api.getRegionDistribution(),
+          api.getIndustryDistribution(),
+        ]);
+        setTrendData(trend);
+        setRegionData(regions);
+        setIndustryData(industries);
+      } catch (error) {
+        console.error('Failed to load chart data:', error);
+      } finally {
+        setChartsLoading(false);
+      }
+    };
+
     fetchData();
+    fetchChartData();
   }, []);
 
   if (loading) {
@@ -40,7 +65,17 @@ export const DashboardPage: React.FC = () => {
     );
   }
 
-  const getStatusColor = (status: string) => {
+  const handleExport = async (format: 'excel' | 'csv' | 'pdf') => {
+    try {
+      const blob = await api.exportTenders(format);
+      const timestamp = new Date().toISOString().split('T')[0];
+      const filename = `tenders_${timestamp}.${format === 'excel' ? 'xlsx' : format}`;
+      await api.downloadExport(blob, filename);
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert('导出失败，请稍后重试');
+    }
+  };
     switch (status) {
       case 'completed':
         return 'bg-green-100 text-green-800';
@@ -144,6 +179,59 @@ export const DashboardPage: React.FC = () => {
               className="block w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700"
             >
               立即启动爬虫
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Charts Section - Phase 10 Task 052-053 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <TrendChart
+          data={trendData}
+          loading={chartsLoading}
+          title="招标趋势 (近30天)"
+          type="both"
+        />
+        <DistributionChart
+          data={regionData}
+          loading={chartsLoading}
+          title="地区分布"
+          type="pie"
+          colorScheme="blue"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <DistributionChart
+          data={industryData}
+          loading={chartsLoading}
+          title="行业分布"
+          type="bar"
+          colorScheme="green"
+        />
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">数据导出</h3>
+          <p className="text-sm text-gray-600 mb-4">
+            导出招标数据用于离线分析
+          </p>
+          <div className="space-y-3">
+            <button
+              onClick={() => handleExport('excel')}
+              className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center gap-2"
+            >
+              <span>导出 Excel</span>
+            </button>
+            <button
+              onClick={() => handleExport('csv')}
+              className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2"
+            >
+              <span>导出 CSV</span>
+            </button>
+            <button
+              onClick={() => handleExport('pdf')}
+              className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center justify-center gap-2"
+            >
+              <span>导出 PDF</span>
             </button>
           </div>
         </div>
