@@ -1,10 +1,19 @@
 """
 Test settings - use SQLite for testing
 """
+import os
+
+# Set environment variables before importing settings
+os.environ['SECRET_KEY'] = 'test-secret-key-not-for-production-use-only-in-tests'
+os.environ['POSTGRES_PASSWORD'] = 'test-password'
+
 from .settings import *
 
-# Use test secret key
+# Override with test-specific settings
 SECRET_KEY = 'test-secret-key-not-for-production-use-only-in-tests'
+
+# Remove PostgreSQL-specific apps
+INSTALLED_APPS = [app for app in INSTALLED_APPS if app != 'django.contrib.postgres']
 
 DATABASES = {
     'default': {

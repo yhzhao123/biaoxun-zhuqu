@@ -68,6 +68,24 @@ class TenderRepository:
 
         return queryset
 
+    def create(self, data: Dict[str, Any]) -> TenderNotice:
+        """
+        创建新的招标公告
+
+        Args:
+            data: 招标公告数据字典
+
+        Returns:
+            TenderNotice对象
+        """
+        # Generate notice_id if not provided
+        if 'notice_id' not in data or not data['notice_id']:
+            import uuid
+            data['notice_id'] = f"TEST-{uuid.uuid4().hex[:8].upper()}"
+
+        tender = TenderNotice.objects.create(**data)
+        return tender
+
     def create_or_update(self, data: Dict[str, Any]) -> TenderNotice:
         """
         创建或更新招标公告

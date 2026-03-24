@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.postgres',  # For PostgreSQL-specific features
     # Third party
     'rest_framework',
     'corsheaders',
@@ -34,6 +35,7 @@ INSTALLED_APPS = [
     'apps.users',
     'apps.tenders',
     'apps.crawler',
+    'apps.analysis',
 ]
 
 MIDDLEWARE = [

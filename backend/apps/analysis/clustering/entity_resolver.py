@@ -3,7 +3,7 @@ Entity Resolver Module
 Resolves entity names to existing clusters.
 """
 
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 from .tenderer_clusterer import TendererClusterer
 
 
