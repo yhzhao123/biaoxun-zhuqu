@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     'apps.tenders',
     'apps.crawler',
     'apps.analysis',
+    'apps.subscriptions',
 ]
 
 MIDDLEWARE = [
