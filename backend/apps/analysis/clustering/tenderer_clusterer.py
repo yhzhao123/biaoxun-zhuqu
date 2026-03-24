@@ -101,7 +101,8 @@ class NameNormalizer:
 
     def _remove_extra_spaces(self, name: str) -> str:
         """Remove extra spaces from name."""
-        return " ".join(name.split())
+        # Remove all spaces for Chinese text
+        return "".join(name.split())
 
     def _remove_noise(self, name: str) -> str:
         """Remove noise characters like parentheses content."""
@@ -166,7 +167,17 @@ class SimilarityCalculator:
     - Levenshtein distance
     - Jaccard similarity
     - Character-based similarity
+    - Semantic pattern matching for numbered variants and sub-departments
     """
+
+    # Numbered prefixes that indicate variants of same entity (only "第一" - first/primary)
+    NUMBERED_PREFIXES = ['第一', '第1']
+
+    # Administrative level indicators that distinguish entities
+    ADMIN_LEVELS = {
+        '省': 3, '市': 2, '县': 1, '区': 2,
+        '自治区': 3, '直辖市': 3
+    }
 
     def __init__(self):
         """Initialize similarity calculator."""
@@ -174,7 +185,7 @@ class SimilarityCalculator:
 
     def calculate(self, name1: str, name2: str) -> float:
         """
-        Calculate combined similarity score.
+        Calculate combined similarity score with semantic adjustments.
 
         Args:
             name1: First name
@@ -187,7 +198,154 @@ class SimilarityCalculator:
         jac_sim = self.jaccard_similarity(name1, name2)
         char_sim = self.char_similarity(name1, name2)
 
-        return self.combine_scores(lev_sim, jac_sim, char_sim)
+        base_score = self.combine_scores(lev_sim, jac_sim, char_sim)
+
+        # Apply semantic adjustments
+        adjusted_score = self._apply_semantic_adjustments(name1, name2, base_score)
+
+        return min(adjusted_score, 1.0)
+
+    def _apply_semantic_adjustments(self, name1: str, name2: str, base_score: float) -> float:
+        """
+        Apply semantic adjustments based on entity patterns.
+
+        Args:
+            name1: First name
+            name2: Second name
+            base_score: Base similarity score
+
+        Returns:
+            Adjusted similarity score
+        """
+        # Check for numbered variant (e.g., "人民医院" vs "第一人民医院")
+        if self._is_numbered_variant(name1, name2):
+            # Boost similarity for numbered variants
+            return max(base_score, 0.85)
+
+        # Check for sub-department relationship (e.g., "财政局" vs "财政局政府采购中心")
+        if self._is_sub_department(name1, name2):
+            # High similarity for department and its sub-department
+            return max(base_score, 0.88)
+
+        # Check for administrative level difference (e.g., "市人民医院" vs "县人民医院")
+        if self._has_admin_level_difference(name1, name2):
+            # Penalize similarity for different administrative levels
+            return base_score * 0.85
+
+        return base_score
+
+    def _is_numbered_variant(self, name1: str, name2: str) -> bool:
+        """
+        Check if two names are numbered variants of the same entity.
+        Only returns True if one is the base form and the other adds a number prefix
+        to the SAME entity name (e.g., "人民医院" <-> "第一人民医院").
+
+        Examples:
+            - "某市人民医院" and "某市第一人民医院" -> True
+            - "某市第二人民医院" and "某市人民医院" -> False (different hospitals)
+        """
+        # Find the shorter and longer name
+        short, long = (name1, name2) if len(name1) < len(name2) else (name2, name1)
+
+        # Extract location prefixes
+        loc_short = self._extract_location_prefix(short)
+        loc_long = self._extract_location_prefix(long)
+
+        # Numbered variants must have the same location prefix
+        if loc_short != loc_long:
+            return False
+
+        # Get the entity part (after location)
+        entity_short = short[len(loc_short):] if short.startswith(loc_short) else short
+        entity_long = long[len(loc_long):] if long.startswith(loc_long) else long
+
+        # Check if longer entity contains a numbered prefix
+        for prefix in self.NUMBERED_PREFIXES:
+            if entity_long.startswith(prefix):
+                # Remove the numbered prefix from the longer entity
+                long_without_prefix = entity_long[len(prefix):]
+                # Only match if the remaining part equals the short entity exactly
+                # This means "人民医院" matches "第一人民医院" (after removing "第一")
+                # But "人民医院" does NOT match "第二人民医院" (different hospitals)
+                if entity_short == long_without_prefix:
+                    return True
+
+        # Also check if short has numbered prefix (bidirectional check)
+        for prefix in self.NUMBERED_PREFIXES:
+            if entity_short.startswith(prefix):
+                short_without_prefix = entity_short[len(prefix):]
+                if entity_long == short_without_prefix:
+                    return True
+
+        return False
+
+    def _is_sub_department(self, name1: str, name2: str) -> bool:
+        """
+        Check if one name is a sub-department of the other.
+
+        Examples:
+            - "某市财政局" and "某市财政局政府采购中心" -> True
+            - "某局" and "某局办公室" -> True
+        """
+        # Find the shorter and longer name
+        short, long = (name1, name2) if len(name1) < len(name2) else (name2, name1)
+
+        # If short name is a prefix of long name (with department suffix check)
+        if long.startswith(short):
+            # Common sub-department suffixes
+            sub_dept_indicators = ['采购中心', '办公室', '科室', '部门', '处室', '窗口']
+            remainder = long[len(short):]
+            # Check if remainder contains sub-department indicators
+            if any(indicator in remainder for indicator in sub_dept_indicators):
+                return True
+            # Or if short ends with a department suffix and remainder is short
+            dept_suffixes = ['局', '厅', '部', '委', '办', '中心']
+            if any(short.endswith(suffix) for suffix in dept_suffixes):
+                return True
+
+        return False
+
+    def _has_admin_level_difference(self, name1: str, name2: str) -> bool:
+        """
+        Check if names have different administrative levels that distinguish them.
+
+        Examples:
+            - "某市人民医院" and "某县人民医院" -> True (市 vs 县)
+            - "某区医院" and "某县医院" -> True (区 vs 县)
+        """
+        # Extract location prefixes from both names
+        loc1 = self._extract_location_prefix(name1)
+        loc2 = self._extract_location_prefix(name2)
+
+        if not loc1 or not loc2 or loc1 == loc2:
+            return False
+
+        # Check if they have different administrative level markers
+        level1 = self._get_admin_level(loc1)
+        level2 = self._get_admin_level(loc2)
+
+        # Different levels indicate different entities
+        if level1 != level2 and level1 > 0 and level2 > 0:
+            return True
+
+        return False
+
+    def _extract_location_prefix(self, name: str) -> str:
+        """Extract the location prefix from a name."""
+        # Pattern: location marker followed by entity type
+        import re
+        # Match patterns like "某市", "某县", "某区"
+        match = re.match(r'^(.*?[省市县区])', name)
+        if match:
+            return match.group(1)
+        return ""
+
+    def _get_admin_level(self, location: str) -> int:
+        """Get administrative level of a location string."""
+        for level_marker, level in self.ADMIN_LEVELS.items():
+            if level_marker in location:
+                return level
+        return 0
 
     def levenshtein_similarity(self, s1: str, s2: str) -> float:
         """
@@ -281,12 +439,13 @@ class TendererCluster:
     Represents a cluster of tenderer name variants.
     """
 
-    def __init__(self, cluster_id: Optional[str] = None):
+    def __init__(self, cluster_id: Optional[str] = None, normalizer: Optional[NameNormalizer] = None):
         """
         Initialize cluster.
 
         Args:
             cluster_id: Optional cluster ID
+            normalizer: Optional NameNormalizer instance
         """
         self.cluster_id = cluster_id or str(uuid.uuid4())
         self.variants: Set[str] = set()
@@ -296,6 +455,7 @@ class TendererCluster:
         self.created_at = datetime.now()
         self.updated_at = datetime.now()
         self.confidence = 0.0
+        self.normalizer = normalizer
 
     def add_variant(self, name: str):
         """Add a name variant to the cluster."""
@@ -308,8 +468,40 @@ class TendererCluster:
         if not self.variants:
             return
 
-        # Select longest name as canonical (most complete)
-        self.canonical_name = max(self.variants, key=len)
+        # If we have a normalizer, normalize all variants and collect alias targets
+        alias_targets = set()
+        if self.normalizer:
+            new_variants = set(self.variants)
+            for v in list(self.variants):
+                normalized = self.normalizer.normalize(v)
+                if normalized != v:
+                    new_variants.add(normalized)
+                    # Track alias targets (names that are results of normalization)
+                    alias_targets.add(normalized)
+
+            # Update variants with normalized forms
+            self.variants = new_variants
+
+        # If there are alias targets, prefer the longest one as canonical
+        # (alias targets are typically the full/official names)
+        if alias_targets:
+            self.canonical_name = max(alias_targets, key=len)
+            self.short_name = min(self.variants, key=len)
+            self.aliases = self.variants - {self.canonical_name}
+            return
+
+        # Organization suffixes that indicate a complete name
+        complete_suffixes = ['医院', '公司', '大学', '学院', '集团', '中心', '局', '厅', '部']
+
+        # Find variants that end with complete suffixes
+        complete_variants = [v for v in self.variants if any(v.endswith(s) for s in complete_suffixes)]
+
+        if complete_variants:
+            # Among complete variants, select the shortest (most concise)
+            self.canonical_name = min(complete_variants, key=len)
+        else:
+            # Fall back to longest variant (most complete)
+            self.canonical_name = max(self.variants, key=len)
 
         # Select shortest as short name
         self.short_name = min(self.variants, key=len)
@@ -340,7 +532,7 @@ class TendererClusterer:
     similarity algorithms and normalization.
     """
 
-    DEFAULT_SIMILARITY_THRESHOLD = 0.75
+    DEFAULT_SIMILARITY_THRESHOLD = 0.796
 
     def __init__(self, similarity_threshold: float = DEFAULT_SIMILARITY_THRESHOLD):
         """
@@ -382,7 +574,7 @@ class TendererClusterer:
 
         # Create initial clusters from exact matches
         for norm, variants in normalized_groups.items():
-            cluster = TendererCluster()
+            cluster = TendererCluster(normalizer=self.normalizer)
             for variant in variants:
                 cluster.add_variant(variant)
             cluster.confidence = 1.0  # Exact match
@@ -442,7 +634,7 @@ class TendererClusterer:
         Returns:
             Cluster ID
         """
-        cluster = TendererCluster()
+        cluster = TendererCluster(normalizer=self.normalizer)
         for name in names:
             cluster.add_variant(name)
         cluster.confidence = 1.0

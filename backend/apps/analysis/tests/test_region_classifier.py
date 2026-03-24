@@ -82,7 +82,7 @@ class TestCityRegionClassification:
         from apps.analysis.classifiers.region_classifier import RegionClassifier
 
         test_cases = [
-            ("上海市浦东新区项目", "上海市", "浦东新区"),
+            ("上海市浦东新区项目", "上海市", "上海市"),  # Municipality
             ("广州市地铁建设", "广东省", "广州市"),
             ("武汉市医院采购", "湖北省", "武汉市"),
             ("西安市信息化项目", "陕西省", "西安市"),

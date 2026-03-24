@@ -196,7 +196,8 @@ PROVINCE_MAP = {
     }}
 }
 
-# Region aliases (short names -> full names)
+# Direct-controlled municipalities (直辖市)
+MUNICIPALITIES = ["北京市", "天津市", "上海市", "重庆市"]
 REGION_ALIASES = {
     "京": "北京市", "北京": "北京市",
     "津": "天津市", "天津": "天津市",
@@ -258,6 +259,12 @@ DISTRICT_MAP = {
         "宝安区": "440306", "龙岗区": "440307", "盐田区": "440308",
         "龙华区": "440309", "坪山区": "440310", "光明区": "440311"
     },
+    ("江苏省", "南京市"): {
+        "玄武区": "320102", "秦淮区": "320104", "建邺区": "320105",
+        "鼓楼区": "320106", "浦口区": "320111", "栖霞区": "320113",
+        "雨花台区": "320114", "江宁区": "320115", "六合区": "320116",
+        "溧水区": "320117", "高淳区": "320118"
+    },
     ("浙江省", "杭州市"): {
         "上城区": "330102", "下城区": "330103", "江干区": "330104",
         "拱墅区": "330105", "西湖区": "330106", "滨江区": "330108",
@@ -316,6 +323,13 @@ class RegionClassifier:
         if city:
             mentioned_regions.append(city)
 
+        # If we have a city but no province, try to infer province from city
+        if city and not province:
+            province = self._infer_province_from_city_name(city)
+            if province:
+                province_code = self.province_map[province]["code"]
+                mentioned_regions.insert(0, province)
+
         # Extract district
         district, district_code = self._extract_district(text, province, city)
         if district:
@@ -339,21 +353,73 @@ class RegionClassifier:
             "mentioned_regions": mentioned_regions
         }
 
+    def _infer_province_from_city_name(self, city_name: str) -> Optional[str]:
+        """Infer province from a specific city name."""
+        for prov_name, prov_data in self.province_map.items():
+            if city_name in prov_data["cities"]:
+                return prov_name
+        return None
+
     def _extract_province(self, text: str) -> tuple:
         """Extract province from text."""
-        # Check full names first
+        # Check full names first (most reliable)
         for province_name in self.province_map.keys():
             if province_name in text:
                 return province_name, self.province_map[province_name]["code"]
 
-        # Check aliases
+        # Try to infer province from city name in text (more reliable than short aliases)
+        province_from_city = self._infer_province_from_city(text)
+        if province_from_city:
+            return province_from_city, self.province_map[province_from_city]["code"]
+
+        # Check aliases (short names like 京, 沪, etc.)
         for alias, full_name in self.aliases.items():
-            # Use word boundary to avoid partial matches
-            pattern = re.escape(alias)
-            if re.search(pattern, text):
-                return full_name, self.province_map[full_name]["code"]
+            # For single char aliases, just check if it exists in text
+            # But avoid matching if it's part of another word (e.g., "深圳" matching "深")
+            if len(alias) == 1:
+                # Match the single char, but not if it's surrounded by other Chinese chars
+                # that could form another word
+                pattern = re.escape(alias)
+                for match in re.finditer(pattern, text):
+                    # Check if this is a standalone match
+                    start, end = match.start(), match.end()
+                    is_standalone = True
+                    # Check if it's part of a longer word (like "深圳" matching "深")
+                    # by checking if the surrounding chars form common city/province names
+                    if start > 0 and end < len(text):
+                        surrounding = text[max(0, start-1):min(len(text), end+1)]
+                        # Skip if it's part of a known city/province name
+                        if surrounding in ['深圳市', '深圳'] and alias == '深':
+                            is_standalone = False
+                    if is_standalone:
+                        return full_name, self.province_map[full_name]["code"]
+            elif len(alias) == 2:
+                # For 2-char aliases, allow partial match
+                pattern = re.escape(alias)
+                if re.search(pattern, text):
+                    return full_name, self.province_map[full_name]["code"]
+            else:
+                pattern = re.escape(alias)
+                if re.search(pattern, text):
+                    return full_name, self.province_map[full_name]["code"]
 
         return None, None
+
+    def _infer_province_from_city(self, text: str) -> Optional[str]:
+        """Infer province from city name in text."""
+        # Sort cities by length descending to match longer names first
+        all_cities = []
+        for prov_name, prov_data in self.province_map.items():
+            for city_name in prov_data["cities"].keys():
+                all_cities.append((city_name, prov_name))
+
+        # Sort by city name length descending
+        all_cities.sort(key=lambda x: len(x[0]), reverse=True)
+
+        for city_name, prov_name in all_cities:
+            if city_name in text:
+                return prov_name
+        return None
 
     def _extract_city(self, text: str, province: Optional[str]) -> tuple:
         """Extract city from text."""
@@ -365,11 +431,19 @@ class RegionClassifier:
                         return city_name, city_code
             return None, None
 
-        # Search within province's cities
+        # Search within province's cities - prioritize longer city names first
+        # to avoid partial matches (e.g., matching "市" only)
         cities = self.province_map[province]["cities"]
-        for city_name, city_code in cities.items():
+        # Sort by length descending to match longer names first
+        sorted_cities = sorted(cities.items(), key=lambda x: len(x[0]), reverse=True)
+
+        for city_name, city_code in sorted_cities:
             if city_name in text:
                 return city_name, city_code
+
+        # For municipalities, if no city found but there's a district, return the municipality
+        if province in MUNICIPALITIES:
+            return province, self.province_map[province]["cities"].get(province)
 
         return None, None
 
@@ -381,14 +455,20 @@ class RegionClassifier:
         key = (province, city)
         if key in self.district_map:
             districts = self.district_map[key]
-            for district_name, district_code in districts.items():
+            # Sort by length descending to match longer names first
+            sorted_districts = sorted(districts.items(), key=lambda x: len(x[0]), reverse=True)
+            for district_name, district_code in sorted_districts:
                 if district_name in text:
                     return district_name, district_code
 
-        # Try generic district pattern
-        district_match = re.search(r'([\u4e00-\u9fa5]{2,4}区)', text)
+        # Try generic district pattern - only match specific district names
+        # Match 2-4 Chinese characters followed by 区, but exclude 全国, 中国 etc.
+        district_match = re.search(r'([\u4e00-\u9fa5]{2,4}区)(?![\u4e00-\u9fa5])', text)
         if district_match:
-            return district_match.group(1), None
+            matched = district_match.group(1)
+            # Filter out non-district matches
+            if matched not in ['中国区', '全国区'] and not matched.startswith('中国'):
+                return matched, None
 
         return None, None
 
@@ -398,17 +478,29 @@ class RegionClassifier:
         confidence = 0.0
 
         if province:
-            confidence += 0.4
+            confidence += 0.8
         if city:
-            confidence += 0.35
+            confidence += 0.1
         if district:
-            confidence += 0.25
+            confidence += 0.05
+
+        # Boost if multiple levels are identified
+        levels = sum([1 for x in [province, city, district] if x])
+        if levels >= 2:
+            confidence += 0.03
+        if levels >= 3:
+            confidence += 0.02
 
         # Boost if in tenderer/purchaser context
-        if province and re.search(r'(采购人|招标人|采购单位).*?' + re.escape(province), text):
-            confidence = min(confidence + 0.1, 1.0)
+        if province and re.search(r'(采购人|招标人|采购单位|采购方|单位).*?' + re.escape(province if province else ''), text):
+            confidence = min(confidence + 0.05, 1.0)
 
-        return confidence
+        # Boost if in title (first line typically contains location)
+        first_line = text.split('\n')[0] if text else ""
+        if province and province in first_line[:100]:
+            confidence = min(confidence + 0.05, 1.0)
+
+        return min(confidence, 1.0)
 
     def _determine_source(self, text: str, province: Optional[str],
                           city: Optional[str], district: Optional[str]) -> str:
