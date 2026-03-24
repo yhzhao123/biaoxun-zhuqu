@@ -26,13 +26,13 @@ const App: React.FC = () => {
                     to="/"
                     className="inline-flex items-center px-1 pt-1 text-sm font-medium text-gray-900"
                   >
-                    Dashboard
+                    仪表盘
                   </Link>
                   <Link
                     to="/tenders"
                     className="inline-flex items-center px-1 pt-1 text-sm font-medium text-gray-500 hover:text-gray-900"
                   >
-                    Tenders
+                    招标列表
                   </Link>
                 </div>
               </div>
@@ -53,7 +53,7 @@ const App: React.FC = () => {
         <footer className="bg-white border-t border-gray-200 mt-12">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
             <p className="text-center text-sm text-gray-500">
-              BiaoXun - Tender Information Platform © 2026
+              标讯 - 招标信息平台 © 2026
             </p>
           </div>
         </footer>

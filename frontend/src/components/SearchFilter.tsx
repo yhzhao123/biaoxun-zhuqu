@@ -4,20 +4,20 @@
  */
 
 import React, { useState, useCallback, useEffect } from 'react';
-import type { TenderFilter } from '../../types';
+import type { TenderFilter } from '../types';
 
 interface SearchFilterProps {
   onFilterChange: (filter: TenderFilter) => void;
   initialFilter?: TenderFilter;
 }
 
-const REGIONS = ['Beijing', 'Shanghai', 'Guangdong', 'Zhejiang', 'Jiangsu', 'Other'];
-const INDUSTRIES = ['IT', 'Construction', 'Healthcare', 'Education', 'Finance', 'Other'];
+const REGIONS = ['北京', '上海', '广东', '浙江', '江苏', '其他'];
+const INDUSTRIES = ['IT', '建筑', '医疗', '教育', '金融', '其他'];
 const STATUSES = [
-  { value: 'active', label: 'Active' },
-  { value: 'pending', label: 'Pending' },
-  { value: 'closed', label: 'Closed' },
-  { value: 'expired', label: 'Expired' },
+  { value: 'active', label: '进行中' },
+  { value: 'pending', label: '待处理' },
+  { value: 'closed', label: '已关闭' },
+  { value: 'expired', label: '已过期' },
 ];
 
 export const SearchFilter: React.FC<SearchFilterProps> = ({
@@ -56,14 +56,14 @@ export const SearchFilter: React.FC<SearchFilterProps> = ({
       {/* Search input */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Search
+          搜索
         </label>
         <div className="relative">
           <input
             type="text"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search by title, tenderer..."
+            placeholder="按标题、招标人搜索..."
             className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
           {searchInput && (
@@ -82,14 +82,14 @@ export const SearchFilter: React.FC<SearchFilterProps> = ({
         {/* Status filter */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Status
+            状态
           </label>
           <select
             value={filter.status || ''}
             onChange={(e) => handleFilterChange('status', e.target.value || undefined)}
             className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
           >
-            <option value="">All</option>
+            <option value="">全部</option>
             {STATUSES.map((s) => (
               <option key={s.value} value={s.value}>
                 {s.label}
@@ -101,14 +101,14 @@ export const SearchFilter: React.FC<SearchFilterProps> = ({
         {/* Region filter */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Region
+            地区
           </label>
           <select
             value={filter.region || ''}
             onChange={(e) => handleFilterChange('region', e.target.value || undefined)}
             className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
           >
-            <option value="">All</option>
+            <option value="">全部</option>
             {REGIONS.map((r) => (
               <option key={r} value={r}>
                 {r}
@@ -120,14 +120,14 @@ export const SearchFilter: React.FC<SearchFilterProps> = ({
         {/* Industry filter */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Industry
+            行业
           </label>
           <select
             value={filter.industry || ''}
             onChange={(e) => handleFilterChange('industry', e.target.value || undefined)}
             className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
           >
-            <option value="">All</option>
+            <option value="">全部</option>
             {INDUSTRIES.map((i) => (
               <option key={i} value={i}>
                 {i}
@@ -141,7 +141,7 @@ export const SearchFilter: React.FC<SearchFilterProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Min Budget
+            最低预算
           </label>
           <input
             type="number"
@@ -158,7 +158,7 @@ export const SearchFilter: React.FC<SearchFilterProps> = ({
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Max Budget
+            最高预算
           </label>
           <input
             type="number"
@@ -179,7 +179,7 @@ export const SearchFilter: React.FC<SearchFilterProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Start Date
+            开始日期
           </label>
           <input
             type="date"
@@ -190,7 +190,7 @@ export const SearchFilter: React.FC<SearchFilterProps> = ({
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            End Date
+            结束日期
           </label>
           <input
             type="date"
@@ -208,7 +208,7 @@ export const SearchFilter: React.FC<SearchFilterProps> = ({
             onClick={handleClear}
             className="text-sm text-gray-600 hover:text-gray-900 underline"
           >
-            Clear all filters
+            清除全部筛选
           </button>
         </div>
       )}

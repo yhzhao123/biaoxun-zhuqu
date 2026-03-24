@@ -5,8 +5,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import type { Tender } from '../../types';
-import { api } from '../../services/api';
+import type { Tender } from '../types';
+import { api } from '../services/api';
 
 export const TenderDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -24,7 +24,7 @@ export const TenderDetail: React.FC = () => {
         const data = await api.getTender(id);
         setTender(data);
       } catch (err) {
-        setError('Failed to load tender details');
+        setError('加载招标详情失败');
         console.error(err);
       } finally {
         setLoading(false);
@@ -81,9 +81,9 @@ export const TenderDetail: React.FC = () => {
   if (error || !tender) {
     return (
       <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
-        {error || 'Tender not found'}
+        {error || '招标不存在'}
         <Link to="/tenders" className="ml-4 text-sm underline">
-          Back to list
+          返回列表
         </Link>
       </div>
     );
@@ -97,7 +97,7 @@ export const TenderDetail: React.FC = () => {
           to="/tenders"
           className="text-blue-600 hover:text-blue-800 text-sm mb-2 inline-block"
         >
-          ← Back to list
+          ← 返回列表
         </Link>
         <h1 className="text-2xl font-bold text-gray-900">{tender.title}</h1>
         <div className="mt-2">
@@ -114,34 +114,34 @@ export const TenderDetail: React.FC = () => {
       {/* Detail grid */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-medium text-gray-900">Basic Information</h2>
+          <h2 className="text-lg font-medium text-gray-900">基本信息</h2>
         </div>
         <div className="px-6 py-4">
           <dl className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <dt className="text-sm font-medium text-gray-500">Notice ID</dt>
+              <dt className="text-sm font-medium text-gray-500">公告编号</dt>
               <dd className="mt-1 text-sm text-gray-900">{tender.notice_id}</dd>
             </div>
             <div>
-              <dt className="text-sm font-medium text-gray-500">Tenderer</dt>
+              <dt className="text-sm font-medium text-gray-500">招标人</dt>
               <dd className="mt-1 text-sm text-gray-900">{tender.tenderer}</dd>
             </div>
             <div>
-              <dt className="text-sm font-medium text-gray-500">Budget</dt>
+              <dt className="text-sm font-medium text-gray-500">预算</dt>
               <dd className="mt-1 text-sm text-gray-900">
                 {formatBudget(tender.budget, tender.currency)}
               </dd>
             </div>
             <div>
-              <dt className="text-sm font-medium text-gray-500">Region</dt>
+              <dt className="text-sm font-medium text-gray-500">地区</dt>
               <dd className="mt-1 text-sm text-gray-900">{tender.region || '-'}</dd>
             </div>
             <div>
-              <dt className="text-sm font-medium text-gray-500">Industry</dt>
+              <dt className="text-sm font-medium text-gray-500">行业</dt>
               <dd className="mt-1 text-sm text-gray-900">{tender.industry || '-'}</dd>
             </div>
             <div>
-              <dt className="text-sm font-medium text-gray-500">Source</dt>
+              <dt className="text-sm font-medium text-gray-500">来源</dt>
               <dd className="mt-1 text-sm text-gray-900">
                 {tender.source_site || '-'}
                 {tender.source_url && (
@@ -151,19 +151,19 @@ export const TenderDetail: React.FC = () => {
                     rel="noopener noreferrer"
                     className="ml-2 text-blue-600 hover:text-blue-800 text-xs"
                   >
-                    View source →
+                    查看来源 →
                   </a>
                 )}
               </dd>
             </div>
             <div>
-              <dt className="text-sm font-medium text-gray-500">Publish Date</dt>
+              <dt className="text-sm font-medium text-gray-500">发布日期</dt>
               <dd className="mt-1 text-sm text-gray-900">
                 {formatDate(tender.publish_date)}
               </dd>
             </div>
             <div>
-              <dt className="text-sm font-medium text-gray-500">Deadline</dt>
+              <dt className="text-sm font-medium text-gray-500">截止日期</dt>
               <dd className="mt-1 text-sm text-gray-900">
                 {formatDate(tender.deadline_date)}
               </dd>
@@ -175,7 +175,7 @@ export const TenderDetail: React.FC = () => {
         {tender.description && (
           <>
             <div className="px-6 py-4 border-t border-gray-200">
-              <h2 className="text-lg font-medium text-gray-900">Description</h2>
+              <h2 className="text-lg font-medium text-gray-900">描述</h2>
             </div>
             <div className="px-6 py-4">
               <p className="text-sm text-gray-700 whitespace-pre-wrap">
@@ -188,7 +188,7 @@ export const TenderDetail: React.FC = () => {
         {/* Metadata */}
         <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
           <div className="text-xs text-gray-500">
-            Created: {formatDate(tender.created_at)} | Updated: {formatDate(tender.updated_at)}
+            创建时间: {formatDate(tender.created_at)} | 更新时间: {formatDate(tender.updated_at)}
           </div>
         </div>
       </div>

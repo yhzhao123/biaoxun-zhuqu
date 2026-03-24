@@ -9,7 +9,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get('SECRET_KEY')
-if not SECRET_KEY:
+if not SECRET_KEY and os.environ.get('DJANGO_SETTINGS_MODULE') != 'config.settings_dev':
     raise ValueError('SECRET_KEY environment variable is required')
 
 # SECURITY WARNING: don't run with debug turned on in production!
@@ -82,9 +82,10 @@ DATABASES = {
     }
 }
 
-# Validate database password
-if not DATABASES['default']['PASSWORD']:
-    raise ValueError('POSTGRES_PASSWORD environment variable is required')
+# Validate database password (skip for dev settings)
+if os.environ.get('DJANGO_SETTINGS_MODULE') != 'config.settings_dev':
+    if not DATABASES['default']['PASSWORD']:
+        raise ValueError('POSTGRES_PASSWORD environment variable is required')
 
 
 # Cache

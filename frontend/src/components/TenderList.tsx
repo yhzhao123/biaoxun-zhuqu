@@ -5,8 +5,8 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import type { Tender, TenderFilter } from '../../types';
-import { api } from '../../services/api';
+import type { Tender, TenderFilter } from '../types';
+import { api } from '../services/api';
 
 interface TenderListProps {
   filter?: TenderFilter;
@@ -28,7 +28,7 @@ export const TenderList: React.FC<TenderListProps> = ({ filter }) => {
       setTenders(response.results);
       setTotalCount(response.count);
     } catch (err) {
-      setError('Failed to load tenders');
+      setError('加载招标列表失败');
       console.error(err);
     } finally {
       setLoading(false);
@@ -93,7 +93,7 @@ export const TenderList: React.FC<TenderListProps> = ({ filter }) => {
           onClick={fetchTenders}
           className="ml-4 text-sm underline hover:no-underline"
         >
-          Retry
+          重试
         </button>
       </div>
     );
@@ -103,7 +103,7 @@ export const TenderList: React.FC<TenderListProps> = ({ filter }) => {
     <div className="space-y-4">
       {/* Results count */}
       <div className="text-sm text-gray-600">
-        Total: {totalCount} tenders
+        共 {totalCount} 条招标信息
       </div>
 
       {/* Tender list */}
@@ -112,22 +112,22 @@ export const TenderList: React.FC<TenderListProps> = ({ filter }) => {
           <thead className="bg-gray-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Title
+                标题
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Tenderer
+                招标人
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Budget
+                预算
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Publish Date
+                发布日期
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Status
+                状态
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Source
+                来源
               </th>
             </tr>
           </thead>
@@ -177,17 +177,17 @@ export const TenderList: React.FC<TenderListProps> = ({ filter }) => {
             disabled={page === 1}
             className="px-4 py-2 border rounded-md text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
           >
-            Previous
+            上一页
           </button>
           <span className="text-sm text-gray-600">
-            Page {page} of {totalPages}
+            第 {page} / {totalPages} 页
           </span>
           <button
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             disabled={page === totalPages}
             className="px-4 py-2 border rounded-md text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
           >
-            Next
+            下一页
           </button>
         </div>
       )}

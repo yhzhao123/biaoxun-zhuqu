@@ -55,31 +55,31 @@ export const DashboardPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+      <h1 className="text-2xl font-bold text-gray-900">仪表盘</h1>
 
       {/* Stats cards */}
       {stats && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="bg-white rounded-lg shadow p-6">
-            <div className="text-sm font-medium text-gray-500">Total Tenders</div>
+            <div className="text-sm font-medium text-gray-500">招标总数</div>
             <div className="mt-2 text-3xl font-bold text-gray-900">
               {stats.total_tenders.toLocaleString()}
             </div>
           </div>
           <div className="bg-white rounded-lg shadow p-6">
-            <div className="text-sm font-medium text-gray-500">Active Tenders</div>
+            <div className="text-sm font-medium text-gray-500">进行中</div>
             <div className="mt-2 text-3xl font-bold text-green-600">
               {stats.active_tenders.toLocaleString()}
             </div>
           </div>
           <div className="bg-white rounded-lg shadow p-6">
-            <div className="text-sm font-medium text-gray-500">Total Budget</div>
+            <div className="text-sm font-medium text-gray-500">总预算</div>
             <div className="mt-2 text-3xl font-bold text-blue-600">
               ¥{(stats.total_budget / 1000000).toFixed(1)}M
             </div>
           </div>
           <div className="bg-white rounded-lg shadow p-6">
-            <div className="text-sm font-medium text-gray-500">Sources</div>
+            <div className="text-sm font-medium text-gray-500">地区数</div>
             <div className="mt-2 text-3xl font-bold text-purple-600">
               {new Set(stats.by_region.map((r) => r.region)).size}
             </div>
@@ -91,9 +91,9 @@ export const DashboardPage: React.FC = () => {
         {/* Recent tasks */}
         <div className="bg-white rounded-lg shadow">
           <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-            <h2 className="text-lg font-medium text-gray-900">Recent Crawl Tasks</h2>
+            <h2 className="text-lg font-medium text-gray-900">最近爬取任务</h2>
             <Link to="/crawler" className="text-sm text-blue-600 hover:text-blue-800">
-              View all
+              查看全部
             </Link>
           </div>
           <div className="divide-y divide-gray-200">
@@ -111,18 +111,18 @@ export const DashboardPage: React.FC = () => {
                       getStatusColor(task.status)
                     }`}
                   >
-                    {task.status}
+                    {task.status === 'completed' ? '已完成' : task.status === 'running' ? '进行中' : task.status === 'failed' ? '失败' : '待处理'}
                   </span>
                 </div>
                 {task.items_crawled > 0 && (
                   <div className="mt-2 text-xs text-gray-500">
-                    Crawled: {task.items_crawled} items
+                    已爬取: {task.items_crawled} 条
                   </div>
                 )}
               </div>
             ))}
             {tasks.length === 0 && (
-              <div className="px-6 py-4 text-sm text-gray-500">No recent tasks</div>
+              <div className="px-6 py-4 text-sm text-gray-500">暂无任务</div>
             )}
           </div>
         </div>
@@ -130,20 +130,20 @@ export const DashboardPage: React.FC = () => {
         {/* Quick actions */}
         <div className="bg-white rounded-lg shadow">
           <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-medium text-gray-900">Quick Actions</h2>
+            <h2 className="text-lg font-medium text-gray-900">快捷操作</h2>
           </div>
           <div className="p-6 space-y-4">
             <Link
               to="/tenders"
               className="block w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-center"
             >
-              Browse All Tenders
+              浏览全部招标
             </Link>
             <button
               onClick={() => api.triggerCrawl('default')}
               className="block w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700"
             >
-              Trigger Crawl Now
+              立即启动爬虫
             </button>
           </div>
         </div>
