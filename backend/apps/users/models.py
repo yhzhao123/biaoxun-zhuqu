@@ -14,6 +14,21 @@ class User(AbstractUser, TimestampMixin, SoftDeleteMixin):
     avatar = models.ImageField(upload_to='avatars/', null=True, blank=True, verbose_name='头像')
     is_active = models.BooleanField(default=True, verbose_name='是否激活')
 
+    # RBAC fields
+    role = models.CharField(
+        max_length=20,
+        choices=[
+            ('admin', '管理员'),
+            ('manager', '经理'),
+            ('user', '普通用户'),
+            ('viewer', '访客'),
+        ],
+        default='user',
+        verbose_name='角色'
+    )
+    extra_permissions = models.JSONField(default=list, blank=True, verbose_name='额外权限')
+    tenant_id = models.CharField(max_length=100, blank=True, verbose_name='租户ID')
+
     class Meta:
         db_table = 'users'
         verbose_name = '用户'

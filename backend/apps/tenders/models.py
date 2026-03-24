@@ -144,6 +144,18 @@ class TenderNotice(TimestampMixin):
         verbose_name='爬虫批次ID'
     )
 
+    # 数据隔离字段
+    created_by = models.ForeignKey(
+        'users.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='tender_notices',
+        verbose_name='创建者'
+    )
+    is_public = models.BooleanField(default=True, verbose_name='是否公开')
+    tenant_id = models.CharField(max_length=100, blank=True, verbose_name='租户ID')
+
     class Meta:
         db_table = 'tender_notices'
         verbose_name = '招标公告'

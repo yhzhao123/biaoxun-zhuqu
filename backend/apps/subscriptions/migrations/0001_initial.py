@@ -46,7 +46,7 @@ class Migration(migrations.Migration):
                 ('created_at', models.DateTimeField(auto_now_add=True, verbose_name='创建时间')),
                 ('updated_at', models.DateTimeField(auto_now=True, verbose_name='更新时间')),
                 ('deleted_at', models.DateTimeField(blank=True, null=True, verbose_name='删除时间')),
-                ('user', models.ForeignKey('auth.User', on_delete=django.db.models.deletion.CASCADE, related_name='subscriptions', verbose_name='用户')),
+                ('user', models.ForeignKey('users.User', on_delete=django.db.models.deletion.CASCADE, related_name='subscriptions', verbose_name='用户')),
             ],
             options={
                 'verbose_name': '订阅',

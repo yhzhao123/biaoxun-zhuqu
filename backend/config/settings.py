@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     'apps.crawler',
     'apps.analysis',
     'apps.subscriptions',
+    'apps.permissions',
 ]
 
 MIDDLEWARE = [
@@ -46,6 +47,8 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'apps.permissions.middleware.PermissionMiddleware',
+    'apps.permissions.middleware.PermissionExceptionMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
