@@ -172,6 +172,13 @@ class TestNotificationService(TestCase):
             notice_type=TenderNotice.TYPE_BIDDING,
             status=TenderNotice.STATUS_PENDING
         )
+        # Create user preferences with realtime digest mode for immediate notifications
+        UserNotificationPreference.objects.create(
+            user=self.user,
+            digest_mode=UserNotificationPreference.DIGEST_REALTIME,
+            email_enabled=True,
+            in_app_enabled=True
+        )
 
     def test_create_notification(self):
         """Should create notification."""
@@ -340,10 +347,12 @@ class TestNotificationService(TestCase):
     def test_digest_mode_deferral(self):
         """Should defer notifications in digest mode."""
         # Set user preference to digest mode
-        pref = UserNotificationPreference.objects.create(
+        pref, _ = UserNotificationPreference.objects.get_or_create(
             user=self.user,
-            digest_mode=UserNotificationPreference.DIGEST_DAILY
+            defaults={'digest_mode': UserNotificationPreference.DIGEST_DAILY}
         )
+        pref.digest_mode = UserNotificationPreference.DIGEST_DAILY
+        pref.save()
 
         match = MatchResult.objects.create(
             subscription=self.subscription,

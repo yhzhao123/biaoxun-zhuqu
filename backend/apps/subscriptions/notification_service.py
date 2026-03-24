@@ -401,7 +401,7 @@ class NotificationService:
         发现与您订阅匹配的新招标机会:
 
         标题: {opportunity.title}
-        招标单位: {opportunity.purchaser_name or '未知'}
+        招标单位: {opportunity.tenderer or '未知'}
         预算金额: {opportunity.budget_amount or '未公布'}
         发布日期: {opportunity.publish_date.strftime('%Y-%m-%d') if opportunity.publish_date else '未知'}
 
