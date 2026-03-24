@@ -5,7 +5,7 @@ High-level matching service for opportunity-to-subscription matching
 
 import logging
 from typing import List, Dict, Any, Optional
-from django.db import transaction
+from django.db import models, transaction
 from django.conf import settings
 
 from apps.tenders.models import TenderNotice
@@ -274,10 +274,10 @@ class MatchingService:
         parts = [opportunity.title]
         if opportunity.description:
             parts.append(opportunity.description)
-        if opportunity.purchaser_name:
-            parts.append(opportunity.purchaser_name)
-        if opportunity.agency_name:
-            parts.append(opportunity.agency_name)
+        if hasattr(opportunity, 'tenderer') and opportunity.tenderer:
+            parts.append(opportunity.tenderer)
+        if hasattr(opportunity, 'project_name') and opportunity.project_name:
+            parts.append(opportunity.project_name)
         return ' '.join(parts)
 
     def _get_active_subscriptions(

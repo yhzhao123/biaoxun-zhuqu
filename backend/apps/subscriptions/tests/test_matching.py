@@ -288,8 +288,9 @@ class TestMatchingService(TestCase):
 
     def test_match_opportunity_not_found(self):
         """Should handle non-existent opportunity."""
+        # Use a non-existent integer ID (TenderNotice uses AutoField, not UUID)
         results = self.matching_service.match_opportunity(
-            '00000000-0000-0000-0000-000000000000'
+            '999999'
         )
         assert len(results) == 0
 

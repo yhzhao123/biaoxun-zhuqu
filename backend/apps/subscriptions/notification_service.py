@@ -12,7 +12,7 @@ from django.utils import timezone
 from django.core.mail import send_mail
 from django.template.loader import render_to_string
 
-from .models import Notification, UserNotificationPreference
+from .notification_models import Notification, UserNotificationPreference
 from .notification_models import UserNotificationPreference as UserPref
 from .matching_service import MatchingService
 
