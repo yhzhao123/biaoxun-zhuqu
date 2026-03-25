@@ -8,6 +8,9 @@ import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
 import { DashboardPage } from './pages/DashboardPage';
 import { TendersPage } from './pages/TendersPage';
 import { TenderDetail } from './components/TenderDetail';
+import { TendererProfilePage } from './pages/TendererProfilePage';
+import { UserPreferencesPage } from './pages/UserPreferencesPage';
+import { NotificationCenter } from './components/NotificationCenter';
 
 const App: React.FC = () => {
   return (
@@ -34,6 +37,12 @@ const App: React.FC = () => {
                   >
                     招标列表
                   </Link>
+                  <Link
+                    to="/settings"
+                    className="inline-flex items-center px-1 pt-1 text-sm font-medium text-gray-500 hover:text-gray-900"
+                  >
+                    设置
+                  </Link>
                 </div>
               </div>
             </div>
@@ -46,6 +55,9 @@ const App: React.FC = () => {
             <Route path="/" element={<DashboardPage />} />
             <Route path="/tenders" element={<TendersPage />} />
             <Route path="/tenders/:id" element={<TenderDetail />} />
+            <Route path="/tenderers/:id" element={<TendererProfilePage />} />
+            <Route path="/settings" element={<UserPreferencesPage />} />
+            <Route path="/notifications" element={<NotificationCenter />} />
           </Routes>
         </main>
 

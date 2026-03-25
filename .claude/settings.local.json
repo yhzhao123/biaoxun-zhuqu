@@ -1,6 +1,6 @@
 {
   "permissions": {
-    "defaultMode": "bypassPermissions",
+    "defaultMode": "bypassPermissions"，
     "allow": [
       "Bash(./venv/Scripts/python.exe *)",
       "Bash(./venv/Scripts/pip.exe *)",
@@ -16,12 +16,16 @@
       "Agent(*)",
       "Read(*)",
       "Write(*)",
-      "Edit(*)"
+      "Edit(*)",
+      "Bash(chmod +x test-docker-config.sh)",
+      "Bash(./test-docker-config.sh)",
+      "Bash(chmod:*)"
     ],
     "deny": [
       "Bash(rm -rf *)",
       "Bash(dropdb *)",
       "Bash(DELETE *)"
-    ]
+    ],
+    "defaultMode": "bypassPermissions"
   }
 }

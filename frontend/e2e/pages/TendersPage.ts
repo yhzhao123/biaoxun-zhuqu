@@ -11,12 +11,12 @@ export class TendersPage {
 
   constructor(page: Page) {
     this.page = page;
-    this.searchInput = page.getByPlaceholder('Search by title, tenderer...');
-    this.statusFilter = page.locator('select').filter({ hasText: 'All' }).first();
-    this.regionFilter = page.locator('select').filter({ hasText: 'All' }).nth(1);
+    this.searchInput = page.getByPlaceholder(/搜索标题|Search/i);
+    this.statusFilter = page.locator('select').filter({ hasText: /全部|All/ }).first();
+    this.regionFilter = page.locator('select').filter({ hasText: /全部|All/ }).nth(1);
     this.tenderRows = page.locator('table tbody tr');
     this.pagination = page.locator('text=Page');
-    this.nextButton = page.getByRole('button', { name: 'Next' });
+    this.nextButton = page.getByRole('button', { name: /下一页|Next/i });
   }
 
   async goto() {
@@ -26,7 +26,10 @@ export class TendersPage {
 
   async expectTendersLoaded() {
     await expect(this.page).toHaveURL(/.*tenders/);
-    await expect(this.page.locator('h1')).toContainText('Tender Notices');
+    // Wait for loading to complete if loading indicator is shown
+    await this.page.locator('text=页面加载中').waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
+    await this.page.waitForTimeout(500);
+    await expect(this.page.locator('h1')).toContainText(/招标公告|Tender/);
   }
 
   async search(query: string) {

@@ -76,6 +76,8 @@ export const DashboardPage: React.FC = () => {
       alert('导出失败，请稍后重试');
     }
   };
+
+  const getStatusColor = (status: string): string => {
     switch (status) {
       case 'completed':
         return 'bg-green-100 text-green-800';

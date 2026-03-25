@@ -39,7 +39,8 @@ test.describe('BiaoXun Basic E2E Tests', () => {
     await expect(nav).toBeVisible();
 
     // Check for navigation links
-    await expect(page.getByRole('link')).toHaveCount.greaterThan(0);
+    const linkCount = await page.getByRole('link').count();
+    expect(linkCount).toBeGreaterThan(0);
   });
 
   test('should be responsive', async ({ page }) => {

@@ -15,6 +15,10 @@ SECRET_KEY = 'test-secret-key-not-for-production-use-only-in-tests'
 # Remove PostgreSQL-specific apps
 INSTALLED_APPS = [app for app in INSTALLED_APPS if app != 'django.contrib.postgres']
 
+# Ensure monitoring app is in INSTALLED_APPS (avoid duplicates)
+if 'apps.monitoring' not in INSTALLED_APPS:
+    INSTALLED_APPS = INSTALLED_APPS + ['apps.monitoring']
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',

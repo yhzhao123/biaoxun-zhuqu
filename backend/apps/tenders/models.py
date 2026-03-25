@@ -162,12 +162,22 @@ class TenderNotice(TimestampMixin):
         verbose_name_plural = '招标公告'
         ordering = ['-publish_date', '-created_at']
         indexes = [
-            models.Index(fields=['title', 'publish_date']),
-            models.Index(fields=['tenderer', 'status']),
-            models.Index(fields=['region', 'industry']),
-            models.Index(fields=['crawl_batch_id', 'created_at']),
-            models.Index(fields=['notice_type', 'publish_date']),
-            models.Index(fields=['region_code', 'industry_code']),
+            # 复合索引：标题 + 发布日期（用于列表查询）
+            models.Index(fields=['title', 'publish_date'], name='%(class)s_title_pub_date_idx'),
+            # 复合索引：招标人 + 状态（用于按招标人筛选）
+            models.Index(fields=['tenderer', 'status'], name='%(class)s_tenderer_status_idx'),
+            # 复合索引：地区 + 行业（用于分类筛选）
+            models.Index(fields=['region', 'industry'], name='%(class)s_region_industry_idx'),
+            # 复合索引：地区编码 + 行业编码（用于编码筛选）
+            models.Index(fields=['region_code', 'industry_code'], name='%(class)s_region_codes_idx'),
+            # 复合索引：爬虫批次 + 创建时间（用于批次查询）
+            models.Index(fields=['crawl_batch_id', 'created_at'], name='%(class)s_crawl_batch_idx'),
+            # 复合索引：公告类型 + 发布日期（用于类型筛选）
+            models.Index(fields=['notice_type', 'publish_date'], name='%(class)s_notice_type_date_idx'),
+            # 复合索引：状态 + 发布日期（用于状态筛选）
+            models.Index(fields=['status', 'publish_date'], name='%(class)s_status_date_idx'),
+            # 复合索引：招标人 + 发布日期（用于招标人历史查询）
+            models.Index(fields=['tenderer', 'publish_date'], name='%(class)s_tenderer_date_idx'),
         ]
 
     def __str__(self):

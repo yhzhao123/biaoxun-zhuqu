@@ -5,7 +5,7 @@
 
 import axios from 'axios';
 import type { AxiosInstance, AxiosResponse } from 'axios';
-import type { Tender, TenderListResponse, TenderFilter, CrawlTask, Statistics } from '../types';
+import type { Tender, TenderListResponse, TenderFilter, CrawlTask, Statistics, Tenderer, Notification, UserPreferences } from '../types';
 
 export interface TrendData {
   date: string;
@@ -132,6 +132,66 @@ class ApiService {
     link.click();
     document.body.removeChild(link);
     window.URL.revokeObjectURL(url);
+  }
+
+  // Tenderer API (Phase 5)
+  async getTenderer(id: string): Promise<Tenderer> {
+    const response: AxiosResponse<Tenderer> = await this.client.get(`/tenderers/${id}/`);
+    return response.data;
+  }
+
+  async searchTenderers(query: string): Promise<Tenderer[]> {
+    const response: AxiosResponse<Tenderer[]> = await this.client.get('/tenderers/search/', {
+      params: { search: query },
+    });
+    return response.data;
+  }
+
+  async getTendererCluster(id: number): Promise<Tenderer[]> {
+    const response: AxiosResponse<Tenderer[]> = await this.client.get(`/tenderers/clusters/${id}/`);
+    return response.data;
+  }
+
+  // Notification API (Phase 8)
+  async getNotifications(page = 1, pageSize = 20): Promise<{ count: number; results: Notification[] }> {
+    const response = await this.client.get('/notifications/', { params: { page, page_size: pageSize } });
+    return response.data;
+  }
+
+  async getUnreadNotificationCount(): Promise<number> {
+    const response = await this.client.get('/notifications/unread-count/');
+    return response.data.count;
+  }
+
+  async markNotificationAsRead(id: string): Promise<void> {
+    await this.client.patch(`/notifications/${id}/read/`);
+  }
+
+  async markAllNotificationsAsRead(): Promise<void> {
+    await this.client.post('/notifications/mark-all-read/');
+  }
+
+  async deleteNotification(id: string): Promise<void> {
+    await this.client.delete(`/notifications/${id}/`);
+  }
+
+  // User Preferences API (Phase 9)
+  async getUserPreferences(): Promise<UserPreferences> {
+    const response: AxiosResponse<UserPreferences> = await this.client.get('/users/preferences/');
+    return response.data;
+  }
+
+  async updateUserPreferences(preferences: Partial<UserPreferences>): Promise<UserPreferences> {
+    const response: AxiosResponse<UserPreferences> = await this.client.patch('/users/preferences/', preferences);
+    return response.data;
+  }
+
+  async updateNotificationPreferences(preferences: Partial<UserPreferences['notification_preferences']>): Promise<UserPreferences> {
+    const response: AxiosResponse<UserPreferences> = await this.client.patch(
+      '/users/preferences/notifications/',
+      preferences
+    );
+    return response.data;
   }
 }
 

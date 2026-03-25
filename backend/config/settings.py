@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'apps.analysis',
     'apps.subscriptions',
     'apps.permissions',
+    'apps.monitoring',
 ]
 
 MIDDLEWARE = [
@@ -85,7 +86,31 @@ DATABASES = {
         'PASSWORD': os.environ.get('POSTGRES_PASSWORD'),
         'HOST': os.environ.get('POSTGRES_HOST', 'localhost'),
         'PORT': os.environ.get('POSTGRES_PORT', '5432'),
+        # Connection pool settings for high-concurrency bidding scenarios
+        'CONN_MAX_AGE': int(os.environ.get('DB_CONN_MAX_AGE', '600')),  # 10 minutes
+        'CONN_HEALTH_CHECKS': True,
+        'OPTIONS': {
+            # Connection timeout settings
+            'connect_timeout': int(os.environ.get('DB_CONNECT_TIMEOUT', '30')),
+            # Additional connection options for performance
+            'options': '-c statement_timeout=60000 -c idle_in_transaction_session_timeout=300000',
+        },
     }
+}
+
+# Database connection pool settings (for production)
+DB_POOL_SETTINGS = {
+    'min_connections': int(os.environ.get('DB_POOL_MIN', '10')),
+    'max_connections': int(os.environ.get('DB_POOL_MAX', '50')),
+    'max_overflow': int(os.environ.get('DB_POOL_OVERFLOW', '10')),
+    'pool_timeout': int(os.environ.get('DB_POOL_TIMEOUT', '30')),
+    'pool_recycle': int(os.environ.get('DB_POOL_RECYCLE', '3600')),
+}
+
+# Query timeout settings
+DB_QUERY_TIMEOUT = {
+    'default': int(os.environ.get('DB_QUERY_TIMEOUT', '30000')),  # 30 seconds
+    'slow': int(os.environ.get('DB_SLOW_QUERY_TIMEOUT', '60000')),  # 60 seconds
 }
 
 # Validate database password (skip for dev settings)
