@@ -193,6 +193,44 @@ class ApiService {
     );
     return response.data;
   }
+
+  // Crawler Sources API
+  async getCrawlSources(): Promise<any[]> {
+    const response = await this.client.get('/crawler/sources/');
+    return response.data.results || response.data;
+  }
+
+  async createCrawlSource(data: Partial<any>): Promise<any> {
+    const response = await this.client.post('/crawler/sources/', data);
+    return response.data;
+  }
+
+  async updateCrawlSource(id: string, data: Partial<any>): Promise<any> {
+    const response = await this.client.patch(`/crawler/sources/${id}/`, data);
+    return response.data;
+  }
+
+  async deleteCrawlSource(id: string): Promise<void> {
+    await this.client.delete(`/crawler/sources/${id}/`);
+  }
+
+  async testCrawlSource(id: string): Promise<any> {
+    const response = await this.client.post(`/crawler/sources/${id}/test/`);
+    return response.data;
+  }
+
+  // Tenderer Analysis API
+  async analyzeTenderer(tenderer: string, days = 365): Promise<any> {
+    const response = await this.client.get('/analysis/tenderers/analyze/', {
+      params: { tenderer, days }
+    });
+    return response.data;
+  }
+
+  async getTendererList(): Promise<any[]> {
+    const response = await this.client.get('/analysis/tenderers/list_tenderers/');
+    return response.data;
+  }
 }
 
 export const api = new ApiService();

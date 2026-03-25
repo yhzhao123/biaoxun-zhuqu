@@ -104,6 +104,18 @@ class TenderViewSet(viewsets.ViewSet):
             'page_size': len(data)
         })
 
+    @action(detail=False, methods=['get'])
+    def export(self, request):
+        """导出招标数据"""
+        format_type = request.query_params.get('format', 'excel')
+        queryset = TenderNotice.objects.all()
+        data = [self._serialize_tender(t) for t in queryset]
+        return Response({
+            'data': data,
+            'format': format_type,
+            'count': len(data)
+        })
+
     def _serialize_tender(self, tender):
         """序列化招标对象"""
         return {
@@ -187,6 +199,22 @@ class StatisticsViewSet(viewsets.ViewSet):
             'by_status': by_status,
             'daily_trend': []
         })
+
+    @action(detail=False, methods=['get'])
+    def regions(self, request):
+        """获取地区分布统计"""
+        by_region = list(TenderNotice.objects.values('region').annotate(
+            count=Count('id')
+        ).order_by('-count'))
+        return Response(by_region)
+
+    @action(detail=False, methods=['get'])
+    def industries(self, request):
+        """获取行业分布统计"""
+        by_industry = list(TenderNotice.objects.values('industry').annotate(
+            count=Count('id')
+        ).order_by('-count'))
+        return Response(by_industry)
 
     @action(detail=False, methods=['get'])
     def trend(self, request):

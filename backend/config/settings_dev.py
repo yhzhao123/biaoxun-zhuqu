@@ -3,6 +3,12 @@ Development settings with SQLite
 """
 from .settings import *
 
+# Remove PostgreSQL app for SQLite development
+INSTALLED_APPS = [
+    app for app in INSTALLED_APPS
+    if app != 'django.contrib.postgres'
+]
+
 # Use SQLite for development
 DATABASES = {
     'default': {

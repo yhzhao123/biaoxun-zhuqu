@@ -10,6 +10,7 @@ import { TendersPage } from './pages/TendersPage';
 import { TenderDetail } from './components/TenderDetail';
 import { TendererProfilePage } from './pages/TendererProfilePage';
 import { UserPreferencesPage } from './pages/UserPreferencesPage';
+import { CrawlerConfigPage } from './pages/CrawlerConfigPage';
 import { NotificationCenter } from './components/NotificationCenter';
 
 const App: React.FC = () => {
@@ -43,6 +44,12 @@ const App: React.FC = () => {
                   >
                     设置
                   </Link>
+                  <Link
+                    to="/crawler"
+                    className="inline-flex items-center px-1 pt-1 text-sm font-medium text-gray-500 hover:text-gray-900"
+                  >
+                    爬虫配置
+                  </Link>
                 </div>
               </div>
             </div>
@@ -57,6 +64,7 @@ const App: React.FC = () => {
             <Route path="/tenders/:id" element={<TenderDetail />} />
             <Route path="/tenderers/:id" element={<TendererProfilePage />} />
             <Route path="/settings" element={<UserPreferencesPage />} />
+            <Route path="/crawler" element={<CrawlerConfigPage />} />
             <Route path="/notifications" element={<NotificationCenter />} />
           </Routes>
         </main>
