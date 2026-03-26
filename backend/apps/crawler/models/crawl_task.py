@@ -2,6 +2,7 @@
 Crawl Task model
 """
 from django.db import models
+from .crawl_source import CrawlSource
 
 
 # Task status choices
@@ -20,6 +21,17 @@ class CrawlTask(models.Model):
     name = models.CharField(max_length=200, verbose_name='任务名称')
     source_url = models.URLField(max_length=500, verbose_name='目标URL')
     source_site = models.CharField(max_length=100, verbose_name='来源网站')
+
+    # 外键关联到CrawlSource
+    source = models.ForeignKey(
+        CrawlSource,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='crawl_tasks',
+        verbose_name='爬虫源'
+    )
+
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,

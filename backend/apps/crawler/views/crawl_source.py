@@ -1,10 +1,12 @@
 """
 CrawlSource API Views - 爬虫源配置API
 """
+import os
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.serializers import ModelSerializer
+from rest_framework.permissions import IsAuthenticated, AllowAny
 
 from ..models import CrawlSource
 
@@ -32,6 +34,13 @@ class CrawlSourceViewSet(viewsets.ModelViewSet):
     """
     queryset = CrawlSource.objects.all()
     serializer_class = CrawlSourceSerializer
+
+    def get_permissions(self):
+        """根据环境返回权限类"""
+        if os.environ.get('DJANGO_SETTINGS_MODULE') == 'config.settings_dev' or \
+           os.environ.get('DEBUG') in ('1', 'true', 'True'):
+            return [AllowAny()]
+        return [IsAuthenticated()]
 
     def get_queryset(self):
         """支持按状态筛选"""

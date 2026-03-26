@@ -4,6 +4,22 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.serializers import ModelSerializer
+
+from ..models import CrawlTask
+
+
+class CrawlTaskSerializer(ModelSerializer):
+    """爬虫任务序列化器"""
+
+    class Meta:
+        model = CrawlTask
+        fields = [
+            'id', 'name', 'source_url', 'source_site',
+            'status', 'items_crawled', 'error_message',
+            'started_at', 'completed_at', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['created_at', 'updated_at']
 
 
 class CrawlTaskViewSet(viewsets.ViewSet):
@@ -12,41 +28,43 @@ class CrawlTaskViewSet(viewsets.ViewSet):
     """
 
     def list(self, request):
-        """获取爬虫任务列表"""
-        # 返回模拟数据，实际应该查询数据库
-        tasks = [
-            {
-                'id': 1,
-                'name': '中国政府采购网',
-                'source_url': 'http://www.ccgp.gov.cn',
-                'source_site': 'ccgp',
-                'status': 'completed',
-                'items_crawled': 150,
-                'started_at': '2024-01-15T10:00:00Z',
-                'completed_at': '2024-01-15T10:30:00Z',
-                'created_at': '2024-01-15T09:00:00Z',
-            },
-            {
-                'id': 2,
-                'name': '中国招标投标公共服务平台',
-                'source_url': 'http://www.cebpubservice.com',
-                'source_site': 'cebpubservice',
-                'status': 'running',
-                'items_crawled': 45,
-                'started_at': '2024-01-15T11:00:00Z',
-                'completed_at': None,
-                'created_at': '2024-01-15T11:00:00Z',
-            }
-        ]
-        return Response(tasks)
+        """获取爬虫任务列表 - 从数据库查询"""
+        tasks = CrawlTask.objects.all().order_by('-created_at')
+
+        # 支持状态筛选
+        status_filter = request.query_params.get('status')
+        if status_filter:
+            tasks = tasks.filter(status=status_filter)
+
+        # 支持来源筛选
+        source_filter = request.query_params.get('source_site')
+        if source_filter:
+            tasks = tasks.filter(source_site=source_filter)
+
+        serializer = CrawlTaskSerializer(tasks, many=True)
+        return Response(serializer.data)
 
     @action(detail=False, methods=['post'])
     def trigger(self, request):
         """触发爬虫任务"""
+        from apps.crawler.tasks import run_crawl_task
+
         source = request.data.get('source', 'default')
-        # 实际应该调用 Celery 任务
+
+        # 创建任务记录
+        task = CrawlTask.objects.create(
+            name=f'爬取任务 - {source}',
+            source_url=f'http://{source}.com',
+            source_site=source,
+            status='pending'
+        )
+
+        # 触发Celery任务
+        celery_task = run_crawl_task.delay(task.id)
+
         return Response({
-            'task_id': 1,
+            'task_id': task.id,
+            'celery_task_id': celery_task.id,
             'status': 'pending',
             'message': f'爬虫任务已启动: {source}'
         })
