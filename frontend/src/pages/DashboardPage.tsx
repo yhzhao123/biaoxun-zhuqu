@@ -177,10 +177,10 @@ export const DashboardPage: React.FC = () => {
               浏览全部招标
             </Link>
             <button
-              onClick={() => api.triggerCrawl('default')}
+              onClick={() => window.location.href = '/crawler'}
               className="block w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700"
             >
-              立即启动爬虫
+              配置并启动爬虫
             </button>
           </div>
         </div>

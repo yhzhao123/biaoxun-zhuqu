@@ -6,7 +6,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.serializers import ModelSerializer
 
-from ..models import CrawlTask
+from ..models import CrawlTask, CrawlSource
 
 
 class CrawlTaskSerializer(ModelSerializer):
@@ -15,7 +15,7 @@ class CrawlTaskSerializer(ModelSerializer):
     class Meta:
         model = CrawlTask
         fields = [
-            'id', 'name', 'source_url', 'source_site',
+            'id', 'name', 'source_url', 'source_site', 'source',
             'status', 'items_crawled', 'error_message',
             'started_at', 'completed_at', 'created_at', 'updated_at'
         ]
@@ -46,16 +46,58 @@ class CrawlTaskViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['post'])
     def trigger(self, request):
-        """触发爬虫任务"""
+        """
+        触发爬虫任务
+
+        请求参数:
+        - source_id: CrawlSource ID (推荐)
+        - source: 爬虫源名称 (兼容旧版本)
+
+        优先使用 source_id，如果未提供则尝试使用第一个活跃的爬虫源
+        """
         from apps.crawler.tasks import run_crawl_task
 
-        source = request.data.get('source', 'default')
+        source_id = request.data.get('source_id')
+        source_name = request.data.get('source')
 
-        # 创建任务记录
+        crawl_source = None
+
+        # 优先使用 source_id 查找
+        if source_id:
+            try:
+                crawl_source = CrawlSource.objects.get(
+                    id=source_id,
+                    status=CrawlSource.STATUS_ACTIVE
+                )
+            except CrawlSource.DoesNotExist:
+                return Response(
+                    {'error': f'爬虫源不存在或未启用: source_id={source_id}'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        # 兼容旧版本：使用 source 名称查找
+        elif source_name:
+            crawl_source = CrawlSource.objects.filter(
+                name=source_name,
+                status=CrawlSource.STATUS_ACTIVE
+            ).first()
+        # 使用默认：第一个活跃的爬虫源
+        else:
+            crawl_source = CrawlSource.objects.filter(
+                status=CrawlSource.STATUS_ACTIVE
+            ).first()
+
+        if not crawl_source:
+            return Response(
+                {'error': '未找到可用的爬虫源，请先配置爬虫源'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 创建任务记录，关联爬虫源
         task = CrawlTask.objects.create(
-            name=f'爬取任务 - {source}',
-            source_url=f'http://{source}.com',
-            source_site=source,
+            name=f'爬取任务 - {crawl_source.name}',
+            source_url=crawl_source.base_url,
+            source_site=crawl_source.name,
+            source=crawl_source,
             status='pending'
         )
 
@@ -66,5 +108,6 @@ class CrawlTaskViewSet(viewsets.ViewSet):
             'task_id': task.id,
             'celery_task_id': celery_task.id,
             'status': 'pending',
-            'message': f'爬虫任务已启动: {source}'
-        })
+            'source': crawl_source.name,
+            'message': f'爬虫任务已启动: {crawl_source.name}'
+        }, status=status.HTTP_201_CREATED)

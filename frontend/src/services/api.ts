@@ -46,7 +46,8 @@ class ApiService {
       (config) => {
         const token = localStorage.getItem('token');
         if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
+          // Django REST Framework TokenAuthentication expects "Token <token>" format
+          config.headers.Authorization = `Token ${token}`;
         }
         return config;
       },
@@ -87,8 +88,8 @@ class ApiService {
     return response.data;
   }
 
-  async triggerCrawl(source: string): Promise<{ task_id: number; status: string }> {
-    const response = await this.client.post('/crawler/trigger/', { source });
+  async triggerCrawl(sourceId: number): Promise<{ task_id: number; status: string; source: string }> {
+    const response = await this.client.post('/crawler/trigger/', { source_id: sourceId });
     return response.data;
   }
 

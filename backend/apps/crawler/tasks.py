@@ -111,28 +111,46 @@ def _get_spider_for_task(task):
     Returns:
         Spider instance or None
     """
-    # 根据source_site动态选择爬虫
+    from apps.crawler.models import CrawlSource
+    from apps.crawler.spiders.dynamic import DynamicSpider
+
+    # 1. 优先使用任务的 source 外键（推荐方式）
+    if task.source:
+        logger.info(f"Using DynamicSpider for source: {task.source.name} (ID: {task.source.id})")
+        return DynamicSpider(crawl_source=task.source)
+
+    # 2. 尝试通过 source_site 名称查找 CrawlSource（兼容旧数据）
+    try:
+        crawl_source = CrawlSource.objects.filter(
+            name=task.source_site,
+            status=CrawlSource.STATUS_ACTIVE
+        ).first()
+
+        if crawl_source:
+            logger.info(f"Using DynamicSpider for source (by name): {task.source_site}")
+            return DynamicSpider(crawl_source=crawl_source)
+    except Exception as e:
+        logger.warning(f"Failed to get CrawlSource by name: {e}")
+
+    # 3. 回退到预定义的爬虫映射（兼容旧逻辑）
     spider_map = {
         '政府采购网': 'apps.crawler.spiders.gov_spider.GovSpider',
         '中国政府采购网': 'apps.crawler.spiders.gov_spider.GovSpider',
     }
 
     spider_path = spider_map.get(task.source_site)
-    if not spider_path:
-        logger.warning(f"No spider mapping for source_site: {task.source_site}")
-        # 返回一个模拟爬虫用于测试
-        return MockSpider(task.source_url)
+    if spider_path:
+        try:
+            module_path, class_name = spider_path.rsplit('.', 1)
+            module = __import__(module_path, fromlist=[class_name])
+            spider_class = getattr(module, class_name)
+            return spider_class()
+        except (ImportError, AttributeError) as e:
+            logger.error(f"Failed to import spider: {e}")
 
-    # 动态导入爬虫类
-    try:
-        module_path, class_name = spider_path.rsplit('.', 1)
-        module = __import__(module_path, fromlist=[class_name])
-        spider_class = getattr(module, class_name)
-        return spider_class()
-    except (ImportError, AttributeError) as e:
-        logger.error(f"Failed to import spider: {e}")
-        # 返回模拟爬虫用于测试
-        return MockSpider(task.source_url)
+    # 4. 最后返回模拟爬虫
+    logger.warning(f"No spider found for source_site: {task.source_site}, using MockSpider")
+    return MockSpider(task.source_url)
 
 
 class MockSpider:
@@ -151,19 +169,33 @@ def scheduled_daily_crawl():
     """
     每日定时爬取任务
 
-    从数据库读取爬虫源配置，批量创建爬虫任务
+    从数据库读取启用的爬虫源配置，批量创建爬虫任务
     """
-    from apps.crawler.models import CrawlTask
+    from apps.crawler.models import CrawlTask, CrawlSource
 
-    # 示例：自动创建每日爬取任务
-    # 实际使用时可以从数据库读取配置
-    default_sources = [
-        {
-            'name': '政府采购网-每日更新',
-            'source_url': 'http://www.ccgp.gov.cn/',
-            'source_site': '政府采购网',
-        },
-    ]
+    # 从数据库读取启用的爬虫源配置
+    active_sources = CrawlSource.objects.filter(status=CrawlSource.STATUS_ACTIVE)
+
+    if not active_sources.exists():
+        logger.warning("No active crawl sources found")
+        # 如果没有配置，使用默认源
+        default_sources = [
+            {
+                'name': '政府采购网-每日更新',
+                'source_url': 'http://www.ccgp.gov.cn/',
+                'source_site': '政府采购网',
+            },
+        ]
+    else:
+        # 使用配置的爬虫源
+        default_sources = [
+            {
+                'name': source.name,
+                'source_url': source.base_url,
+                'source_site': source.name,
+            }
+            for source in active_sources
+        ]
 
     created_tasks = []
     for source in default_sources:

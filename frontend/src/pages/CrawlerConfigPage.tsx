@@ -100,6 +100,15 @@ export const CrawlerConfigPage: React.FC = () => {
     }
   };
 
+  const handleStartCrawl = async (source: CrawlSource) => {
+    try {
+      const result = await api.triggerCrawl(source.id!);
+      alert(`爬虫任务已启动！\n任务ID: ${result.task_id}\n爬虫源: ${result.source}\n状态: ${result.status}`);
+    } catch (err) {
+      alert('启动失败');
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     const styles: Record<string, string> = {
       active: 'bg-green-100 text-green-800',
@@ -324,8 +333,14 @@ export const CrawlerConfigPage: React.FC = () => {
                   <td className="px-6 py-4 text-sm">{source.total_crawled}</td>
                   <td className="px-6 py-4 text-sm space-x-2">
                     <button
+                      onClick={() => handleStartCrawl(source)}
+                      className="text-green-600 hover:text-green-900 font-medium"
+                    >
+                      启动
+                    </button>
+                    <button
                       onClick={() => handleTest(source.id)}
-                      className="text-green-600 hover:text-green-900"
+                      className="text-blue-600 hover:text-blue-900"
                     >
                       测试
                     </button>
