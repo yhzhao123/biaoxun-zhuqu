@@ -11,6 +11,7 @@ const PROVIDER_OPTIONS = [
   { value: 'ollama', label: 'Ollama (本地)', defaultModel: 'qwen2.5:7b', defaultUrl: 'http://localhost:11434' },
   { value: 'openai', label: 'OpenAI', defaultModel: 'gpt-3.5-turbo', defaultUrl: '' },
   { value: 'claude', label: 'Claude (Anthropic)', defaultModel: 'claude-3-haiku-20240307', defaultUrl: '' },
+  { value: 'openai', label: 'OpenRouter (兼容OpenAI)', defaultModel: 'openai/gpt-3.5-turbo', defaultUrl: 'https://openrouter.ai/api/v1' },
 ];
 
 export const LLMConfigPage: React.FC = () => {
@@ -496,9 +497,13 @@ export const LLMConfigPage: React.FC = () => {
           <li><strong>Ollama:</strong> 本地运行的大模型，无需API密钥。运行 <code className="bg-blue-100 px-1 rounded">ollama serve</code> 启动服务</li>
           <li><strong>OpenAI:</strong> 需要OpenAI API密钥，在服务器设置环境变量 <code className="bg-blue-100 px-1 rounded">OPENAI_API_KEY</code></li>
           <li><strong>Claude:</strong> 需要Anthropic API密钥，在服务器设置环境变量 <code className="bg-blue-100 px-1 rounded">ANTHROPIC_API_KEY</code></li>
+          <li><strong>OpenRouter:</strong> 使用OpenAI兼容API，设置API基础URL为 <code className="bg-blue-100 px-1 rounded">https://openrouter.ai/api/v1</code>，并提供OpenRouter API密钥</li>
           <li>点击"测试"按钮可以验证配置是否正确</li>
           <li>设置"默认配置"后，对话将自动使用该配置</li>
         </ul>
+        <div className="mt-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
+          <strong>提示:</strong> 使用OpenRouter免费模型时，请确保您的API密钥有效。免费模型可能有请求限制。
+        </div>
       </div>
     </div>
   );

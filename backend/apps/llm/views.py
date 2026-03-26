@@ -457,9 +457,55 @@ class ChatViewSet(viewsets.ViewSet):
                 'extracted_entities': response.get('extracted_entities', {})
             })
 
-        except Exception as e:
+        except requests.exceptions.HTTPError as e:
+            error_msg = f'LLM服务HTTP错误: {e.response.status_code}'
+            solution = None
+            if e.response.status_code == 401:
+                error_msg = 'API密钥无效或未配置'
+                solution = '请检查API密钥是否正确设置'
+            elif e.response.status_code == 403:
+                error_msg = 'API访问被拒绝'
+                solution = '请检查API密钥权限或账户状态'
+            elif e.response.status_code == 429:
+                error_msg = 'API请求频率超限'
+                solution = '请稍后重试或升级API计划'
+
             return Response({
-                'detail': f'LLM调用失败: {str(e)}'
+                'detail': error_msg,
+                'solution': solution,
+                'provider': conversation.llm_config.provider if conversation.llm_config else None,
+            }, status=status.HTTP_502_BAD_GATEWAY)
+        except Exception as e:
+            error_str = str(e)
+            # 解析常见错误类型
+            if '401' in error_str or 'Unauthorized' in error_str:
+                return Response({
+                    'detail': 'API密钥无效或未配置',
+                    'solution': '请前往LLM配置页面检查API密钥是否正确',
+                    'provider': conversation.llm_config.provider if conversation.llm_config else None,
+                }, status=status.HTTP_502_BAD_GATEWAY)
+            elif '403' in error_str:
+                return Response({
+                    'detail': 'API访问被拒绝',
+                    'solution': '请检查API密钥权限或账户状态',
+                    'provider': conversation.llm_config.provider if conversation.llm_config else None,
+                }, status=status.HTTP_502_BAD_GATEWAY)
+            elif 'timeout' in error_str.lower() or 'timed out' in error_str.lower():
+                return Response({
+                    'detail': 'LLM服务响应超时',
+                    'solution': '请稍后重试，模型可能正在加载中',
+                    'provider': conversation.llm_config.provider if conversation.llm_config else None,
+                }, status=status.HTTP_504_GATEWAY_TIMEOUT)
+            elif 'connection' in error_str.lower():
+                return Response({
+                    'detail': '无法连接到LLM服务',
+                    'solution': '请检查网络连接或服务地址是否正确',
+                    'provider': conversation.llm_config.provider if conversation.llm_config else None,
+                }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+            return Response({
+                'detail': f'LLM调用失败: {error_str}',
+                'provider': conversation.llm_config.provider if conversation.llm_config else None,
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=['post'], url_path='analyze-tender')

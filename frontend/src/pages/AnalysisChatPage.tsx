@@ -55,12 +55,15 @@ export const AnalysisChatPage: React.FC = () => {
 
   const createNewConversation = async () => {
     try {
+      setError(null); // 清除之前的错误
       const newConv = await llmService.createConversation('新对话');
       setConversations([newConv, ...conversations]);
       setCurrentConversation(newConv);
       setMessages([]);
-    } catch (err) {
-      setError('创建对话失败');
+    } catch (err: unknown) {
+      const errorData = (err as { response?: { data?: { detail?: string } } })?.response?.data;
+      const errorMsg = errorData?.detail || (err as { userMessage?: string })?.userMessage || '创建对话失败';
+      setError(errorMsg);
     }
   };
 
@@ -115,8 +118,18 @@ export const AnalysisChatPage: React.FC = () => {
         },
       };
       setMessages(prev => [...prev, assistantMessage]);
-    } catch (err) {
-      setError('发送消息失败');
+    } catch (err: unknown) {
+      // 提取详细错误信息
+      let errorMsg = '发送消息失败';
+      const errorData = (err as { response?: { data?: { detail?: string; solution?: string } } })?.response?.data;
+      if (errorData?.detail) {
+        errorMsg = errorData.detail;
+      } else if ((err as { userMessage?: string })?.userMessage) {
+        errorMsg = (err as { userMessage: string }).userMessage;
+      }
+      setError(`${errorMsg}${errorData?.solution ? ` - ${errorData.solution}` : ''}`);
+      // 移除用户消息，因为发送失败
+      setMessages(prev => prev.slice(0, -1));
     } finally {
       setLoading(false);
     }
