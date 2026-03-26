@@ -5,12 +5,14 @@ This spider can crawl arbitrary tender websites based on CSS selectors,
 URL patterns, and other configuration stored in CrawlSource model.
 
 Features:
-- Multiple extraction strategies: Intelligent, LLM, CSS Selectors
+- Multiple extraction modes: HTML, API, Intelligent, LLM, Auto
+- API support for dynamically loaded websites
 - Automatic page structure analysis
 - Fallback chain for robust extraction
 """
 
 import re
+import json
 import logging
 from datetime import datetime
 from typing import Optional, Dict, List, Any
@@ -32,32 +34,30 @@ class DynamicSpider(BaseSpider):
     Generic dynamic spider that crawls websites based on CrawlSource configuration.
 
     Features:
-    - Multiple extraction strategies with fallback chain
+    - Multiple extraction modes: HTML, API, Intelligent, LLM, Auto
+    - API support for dynamically loaded websites (AJAX)
     - Intelligent extraction (auto-detect page structure)
     - LLM-based extraction (use configured LLM to parse content)
     - CSS selector-based extraction (fallback)
     - Pagination support with URL pattern
     - TenderNotice creation and storage
-    - Keyword search capability
-    - Multiple date format parsing
-    - Budget amount parsing with currency conversion
 
-    Extraction Priority:
-    1. Intelligent extraction (analyze page structure automatically)
-    2. LLM extraction (use AI to parse content)
-    3. CSS selectors (configured in CrawlSource)
+    Extraction Modes:
+    - html: Parse HTML with CSS selectors
+    - api: Call external API and parse JSON response
+    - intelligent: Auto-detect page structure
+    - llm: Use LLM to extract structured data
+    - auto: Try intelligent -> llm -> html automatically
     """
 
     name = 'dynamic_spider'
 
-    def __init__(self, crawl_source, use_llm: bool = True, use_intelligent: bool = True, **kwargs):
+    def __init__(self, crawl_source, **kwargs):
         """
         Initialize DynamicSpider with CrawlSource configuration.
 
         Args:
             crawl_source: CrawlSource model instance
-            use_llm: Enable LLM-based extraction (default: True)
-            use_intelligent: Enable intelligent extraction (default: True)
             **kwargs: Additional arguments for BaseSpider
         """
         # Extract configuration from CrawlSource
@@ -74,30 +74,57 @@ class DynamicSpider(BaseSpider):
         self.base_url = crawl_source.base_url
         self.delay_seconds = crawl_source.delay_seconds or 1
 
-        # CSS selectors (fallback)
+        # Extraction mode
+        self.extraction_mode = crawl_source.extraction_mode or 'auto'
+
+        # CSS selectors (for HTML mode)
         self.selector_title = crawl_source.selector_title or 'h1, .title'
         self.selector_content = crawl_source.selector_content or '.content, article'
         self.selector_publish_date = crawl_source.selector_publish_date or '.date, time'
         self.selector_tenderer = crawl_source.selector_tenderer or '.tenderer, .buyer'
         self.selector_budget = crawl_source.selector_budget or '.budget, .amount'
 
+        # List page selectors (for HTML mode)
+        self.list_container_selector = getattr(crawl_source, 'list_container_selector', '') or ''
+        self.list_item_selector = getattr(crawl_source, 'list_item_selector', '') or ''
+        self.list_link_selector = getattr(crawl_source, 'list_link_selector', '') or ''
+
         # URL pattern for pagination
         self.list_url_pattern = crawl_source.list_url_pattern or ''
 
-        # Initialize extraction pipeline
+        # API configuration (for API mode)
+        self.api_url = getattr(crawl_source, 'api_url', '') or ''
+        self.api_method = getattr(crawl_source, 'api_method', 'POST') or 'POST'
+        self.api_params = getattr(crawl_source, 'api_params', {}) or {}
+        self.api_headers = getattr(crawl_source, 'api_headers', {}) or {}
+        self.api_response_path = getattr(crawl_source, 'api_response_path', '') or ''
+
+        # API field mappings
+        self.api_field_title = getattr(crawl_source, 'api_field_title', '') or ''
+        self.api_field_url = getattr(crawl_source, 'api_field_url', '') or ''
+        self.api_field_date = getattr(crawl_source, 'api_field_date', '') or ''
+        self.api_field_budget = getattr(crawl_source, 'api_field_budget', '') or ''
+        self.api_field_tenderer = getattr(crawl_source, 'api_field_tenderer', '') or ''
+
+        # Pagination config
+        self.page_param_name = getattr(crawl_source, 'page_param_name', 'page') or 'page'
+        self.page_start = getattr(crawl_source, 'page_start', 1) or 1
+        self.max_pages = getattr(crawl_source, 'max_pages', 10) or 10
+
+        # Initialize extraction pipeline for HTML/intelligent/LLM modes
+        use_llm = self.extraction_mode in ('llm', 'auto')
+        use_intelligent = self.extraction_mode in ('intelligent', 'auto')
+
         self.extraction_pipeline = ExtractionPipeline(
             use_llm=use_llm,
             use_intelligent=use_intelligent
         )
 
-        # Log extraction mode
-        extraction_modes = []
-        if use_intelligent:
-            extraction_modes.append('intelligent')
-        if use_llm:
-            extraction_modes.append('llm')
-        extraction_modes.append('selector')
-        logger.info(f"DynamicSpider initialized with extraction modes: {' -> '.join(extraction_modes)}")
+        # Log initialization
+        logger.info(f"DynamicSpider initialized for {crawl_source.name}")
+        logger.info(f"  Extraction mode: {self.extraction_mode}")
+        if self.extraction_mode == 'api' or self.api_url:
+            logger.info(f"  API URL: {self.api_url}")
 
     def extract_with_selector(self, html: str, selector: str) -> str:
         """
@@ -310,9 +337,246 @@ class DynamicSpider(BaseSpider):
 
         return None
 
-    def crawl(self, max_pages: int = 1) -> List[Dict[str, Any]]:
+    def crawl(self, max_pages: int = None) -> List[Dict[str, Any]]:
         """
         Execute the crawl operation.
+
+        Supports multiple extraction modes:
+        - api: Call external API and parse JSON response
+        - html: Parse HTML with CSS selectors
+        - intelligent: Auto-detect page structure
+        - llm: Use LLM to extract structured data
+        - auto: Try multiple methods automatically
+
+        Args:
+            max_pages: Maximum number of list pages to crawl (overrides config)
+
+        Returns:
+            List of crawled items
+        """
+        # Use configured max_pages if not specified
+        if max_pages is None:
+            max_pages = self.max_pages
+
+        items = []
+
+        # Determine extraction mode
+        if self.extraction_mode == 'api' or (self.api_url and self.extraction_mode != 'html'):
+            # API mode: Call external API
+            logger.info(f"Using API mode with URL: {self.api_url}")
+            items = self._crawl_via_api(max_pages)
+        else:
+            # HTML/Intelligent/LLM mode: Crawl web pages
+            logger.info(f"Using HTML mode with base URL: {self.base_url}")
+            items = self._crawl_via_html(max_pages)
+
+        return items
+
+    def _crawl_via_api(self, max_pages: int) -> List[Dict[str, Any]]:
+        """
+        Crawl using API calls.
+
+        Args:
+            max_pages: Maximum number of pages to fetch
+
+        Returns:
+            List of crawled items
+        """
+        items = []
+
+        if not self.api_url:
+            logger.error("API URL not configured")
+            return items
+
+        for page in range(self.page_start, self.page_start + max_pages):
+            try:
+                # Build request parameters
+                params = dict(self.api_params)  # Copy template params
+                params[self.page_param_name] = page
+
+                # Make API request
+                headers = {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                }
+                headers.update(self.api_headers)
+
+                logger.info(f"API Request: {self.api_method} {self.api_url} (page {page})")
+
+                if self.api_method == 'GET':
+                    response = requests.get(
+                        self.api_url,
+                        params=params,
+                        headers=headers,
+                        timeout=30
+                    )
+                else:
+                    response = requests.post(
+                        self.api_url,
+                        json=params,
+                        headers=headers,
+                        timeout=30
+                    )
+
+                response.raise_for_status()
+                data = response.json()
+
+                # Parse API response
+                page_items = self._parse_api_response(data)
+
+                if not page_items:
+                    logger.info(f"No more items on page {page}")
+                    break
+
+                # Create tender notices
+                for item in page_items:
+                    notice = self.create_tender_notice(item)
+                    if notice:
+                        items.append({
+                            'notice_id': notice.notice_id,
+                            'title': notice.title,
+                            'source_url': notice.source_url
+                        })
+
+                logger.info(f"Page {page}: extracted {len(page_items)} items, created {len([i for i in page_items if i.get('_created')])} notices")
+
+                # Delay between requests
+                self.delay()
+
+            except requests.RequestException as e:
+                logger.error(f"API request failed on page {page}: {e}")
+                break
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse API response on page {page}: {e}")
+                break
+            except Exception as e:
+                logger.error(f"Unexpected error on page {page}: {e}")
+                break
+
+        return items
+
+    def _parse_api_response(self, data: Dict) -> List[Dict[str, Any]]:
+        """
+        Parse API JSON response.
+
+        Args:
+            data: JSON response data
+
+        Returns:
+            List of parsed items
+        """
+        items = []
+
+        try:
+            # Navigate to data list using response path
+            if self.api_response_path:
+                # Support dot notation: data.middle.listAndBox
+                list_data = data
+                for key in self.api_response_path.split('.'):
+                    if isinstance(list_data, dict) and key in list_data:
+                        list_data = list_data[key]
+                    else:
+                        logger.warning(f"Could not find path: {self.api_response_path}")
+                        return items
+            else:
+                # Try common paths
+                for path in ['data', 'data.list', 'data.middle.listAndBox', 'results', 'items']:
+                    list_data = data
+                    for key in path.split('.'):
+                        if isinstance(list_data, dict) and key in list_data:
+                            list_data = list_data[key]
+                        else:
+                            list_data = None
+                            break
+                    if list_data:
+                        break
+
+            if not list_data:
+                logger.warning("Could not find data list in API response")
+                return items
+
+            # Process each item
+            for item_data in list_data:
+                # Handle nested data structure
+                if isinstance(item_data, dict) and 'data' in item_data:
+                    item_data = item_data['data']
+
+                item = self._extract_api_fields(item_data)
+                if item and item.get('title'):
+                    items.append(item)
+
+        except Exception as e:
+            logger.error(f"Error parsing API response: {e}")
+
+        return items
+
+    def _extract_api_fields(self, data: Dict) -> Optional[Dict[str, Any]]:
+        """
+        Extract fields from API item data.
+
+        Args:
+            data: Single item data from API
+
+        Returns:
+            Dictionary with extracted fields
+        """
+        if not isinstance(data, dict):
+            return None
+
+        def get_field(data: Dict, path: str, default=None):
+            """Get field value using dot notation path"""
+            if not path:
+                return default
+            value = data
+            for key in path.split('.'):
+                if isinstance(value, dict) and key in value:
+                    value = value[key]
+                else:
+                    return default
+            return value if value is not None else default
+
+        # Extract fields using configured paths
+        title = get_field(data, self.api_field_title) or data.get('title', '')
+        url = get_field(data, self.api_field_url) or data.get('url', '')
+        date_str = get_field(data, self.api_field_date) or data.get('time', '')
+        budget_str = get_field(data, self.api_field_budget) or data.get('budget', '')
+        tenderer = get_field(data, self.api_field_tenderer) or data.get('tenderer', '')
+
+        # Build URL if relative
+        if url and not url.startswith('http'):
+            url = urljoin(self.base_url, url)
+
+        # Parse date
+        publish_date = self.parse_date(str(date_str)[:19] if date_str else '')
+
+        # Parse budget
+        budget = None
+        if budget_str:
+            budget = self.parse_budget(str(budget_str))
+
+        # Detect notice type from title
+        notice_type = 'bidding'
+        title_str = str(title) if title else ''
+        if '中标' in title_str or '成交' in title_str or '结果' in title_str:
+            notice_type = 'win'
+        elif '变更' in title_str:
+            notice_type = 'change'
+
+        return {
+            'title': str(title).strip() if title else '',
+            'source_url': str(url).strip() if url else '',
+            'publish_date': publish_date,
+            'budget': budget,
+            'tenderer': str(tenderer).strip() if tenderer else '',
+            'notice_type': notice_type,
+            'extraction_method': 'api',
+            'extraction_confidence': 0.95,
+        }
+
+    def _crawl_via_html(self, max_pages: int) -> List[Dict[str, Any]]:
+        """
+        Crawl using HTML parsing.
 
         Args:
             max_pages: Maximum number of list pages to crawl
@@ -359,48 +623,98 @@ class DynamicSpider(BaseSpider):
         """
         Parse list page to extract item links.
 
+        Uses configured selectors if available:
+        - list_container_selector: Container holding all list items
+        - list_item_selector: Each individual item in the list
+        - list_link_selector: Link to detail page within each item
+
+        Falls back to generic link extraction if not configured.
+
         Args:
             html: List page HTML content
 
         Returns:
-            List of item dictionaries with 'url' key
+            List of item dictionaries with 'url' and 'title' keys
         """
         items = []
 
         try:
             soup = BeautifulSoup(html, 'html.parser')
 
-            # Find all links that might be detail pages
-            # This is a generic approach - can be customized
-            links = soup.select('a[href]')
+            # Use configured selectors if available
+            if self.list_item_selector:
+                # Configured mode: use specific selectors
+                logger.debug(f"Using configured list selectors")
 
-            for link in links:
-                href = link.get('href', '')
-                text = link.get_text(strip=True)
+                # Find container if specified
+                container = soup
+                if self.list_container_selector:
+                    containers = soup.select(self.list_container_selector)
+                    if containers:
+                        container = containers[0]
 
-                # Skip empty or navigation links
-                if not href or not text:
-                    continue
+                # Find list items
+                list_items = container.select(self.list_item_selector)
+                logger.debug(f"Found {len(list_items)} list items")
 
-                # Skip javascript: and other non-http links
-                if href.startswith('javascript:') or href.startswith('#'):
-                    continue
+                for item in list_items:
+                    # Extract link
+                    if self.list_link_selector:
+                        links = item.select(self.list_link_selector)
+                    else:
+                        links = item.select('a[href]')
 
-                # Skip likely navigation links
-                skip_patterns = ['/index', '/home', '/about', '/contact', '/news']
-                if any(pattern in href.lower() for pattern in skip_patterns):
-                    continue
+                    for link in links:
+                        href = link.get('href', '')
+                        text = link.get_text(strip=True)
 
-                full_url = self.generate_detail_url(href)
+                        if not href:
+                            continue
 
-                # Only include http/https URLs
-                if not full_url.startswith(('http://', 'https://')):
-                    continue
+                        # Skip non-http links
+                        if href.startswith('javascript:') or href.startswith('#'):
+                            continue
 
-                items.append({
-                    'url': full_url,
-                    'title': text
-                })
+                        full_url = self.generate_detail_url(href)
+
+                        if full_url.startswith(('http://', 'https://')):
+                            items.append({
+                                'url': full_url,
+                                'title': text
+                            })
+                            break  # Take first valid link from each item
+            else:
+                # Generic mode: find all links
+                logger.debug(f"Using generic link extraction")
+                links = soup.select('a[href]')
+
+                for link in links:
+                    href = link.get('href', '')
+                    text = link.get_text(strip=True)
+
+                    # Skip empty or navigation links
+                    if not href or not text:
+                        continue
+
+                    # Skip javascript: and other non-http links
+                    if href.startswith('javascript:') or href.startswith('#'):
+                        continue
+
+                    # Skip likely navigation links
+                    skip_patterns = ['/index', '/home', '/about', '/contact', '/news']
+                    if any(pattern in href.lower() for pattern in skip_patterns):
+                        continue
+
+                    full_url = self.generate_detail_url(href)
+
+                    # Only include http/https URLs
+                    if not full_url.startswith(('http://', 'https://')):
+                        continue
+
+                    items.append({
+                        'url': full_url,
+                        'title': text
+                    })
 
         except Exception as e:
             logger.error(f"Error parsing list: {e}")

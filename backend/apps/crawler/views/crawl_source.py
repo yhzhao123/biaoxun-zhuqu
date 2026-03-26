@@ -17,10 +17,28 @@ class CrawlSourceSerializer(ModelSerializer):
     class Meta:
         model = CrawlSource
         fields = [
+            # 基础信息
             'id', 'name', 'base_url', 'list_url_pattern',
+            # 数据提取模式
+            'extraction_mode',
+            # CSS选择器配置
             'selector_title', 'selector_content', 'selector_publish_date',
             'selector_tenderer', 'selector_budget',
+            # API配置
+            'api_url', 'api_method', 'api_params', 'api_headers',
+            'api_response_path',
+            # API字段映射
+            'api_field_title', 'api_field_url', 'api_field_date',
+            'api_field_budget', 'api_field_tenderer',
+            # 分页配置
+            'page_param_name', 'page_start', 'max_pages',
+            # 列表页配置
+            'list_container_selector', 'list_item_selector', 'list_link_selector',
+            # JavaScript渲染
+            'use_javascript', 'wait_for_selector', 'wait_timeout',
+            # 请求配置
             'request_headers', 'request_cookies', 'delay_seconds',
+            # 状态与统计
             'status', 'last_crawl_at', 'total_crawled', 'success_rate',
             'created_at', 'updated_at'
         ]
