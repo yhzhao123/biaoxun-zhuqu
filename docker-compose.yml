@@ -89,6 +89,11 @@ services:
       - ./backend:/app
     environment:
       - DEBUG=1
+      - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
+      - POSTGRES_DB=${POSTGRES_DB:-biaoxun}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_HOST=db
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/biaoxun
       - REDIS_URL=redis://redis:6379/0
       - DJANGO_SETTINGS_MODULE=config.settings
@@ -103,6 +108,11 @@ services:
       - ./backend:/app
     environment:
       - DEBUG=1
+      - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
+      - POSTGRES_DB=${POSTGRES_DB:-biaoxun}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_HOST=db
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/biaoxun
       - REDIS_URL=redis://redis:6379/0
       - DJANGO_SETTINGS_MODULE=config.settings
@@ -113,7 +123,7 @@ services:
   frontend:
     image: node:18-alpine
     working_dir: /app
-    command: sh -c "npm install && npm run dev"
+    command: sh -c "npm install && npm run dev -- --host"
     volumes:
       - ./frontend:/app
     ports:

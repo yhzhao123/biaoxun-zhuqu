@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     'django.contrib.postgres',  # For PostgreSQL-specific features
     # Third party
     'rest_framework',
+    'rest_framework.authtoken',  # Token authentication
     'corsheaders',
     # Local apps
     'apps.users',
@@ -39,6 +40,7 @@ INSTALLED_APPS = [
     'apps.subscriptions',
     'apps.permissions',
     'apps.monitoring',
+    'apps.llm',
 ]
 
 MIDDLEWARE = [
@@ -176,13 +178,18 @@ AUTH_USER_MODEL = 'users.User'
 # Django REST Framework
 # https://www.django-rest-framework.org/
 
+# DEBUG模式下禁用Token认证，避免无效token导致403
+_IS_DEBUG = os.environ.get('DEBUG') in ('1', 'true', 'True')
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.SessionAuthentication',
+    ] if _IS_DEBUG else [
         'rest_framework.authentication.SessionAuthentication',
         'rest_framework.authentication.TokenAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
+        'rest_framework.permissions.AllowAny' if _IS_DEBUG else 'rest_framework.permissions.IsAuthenticated',
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
@@ -198,6 +205,18 @@ CORS_ALLOWED_ORIGINS = os.environ.get(
 ).split(',')
 
 CORS_ALLOW_CREDENTIALS = True
+
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
 
 
 # Celery Configuration
