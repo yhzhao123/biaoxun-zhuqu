@@ -4,7 +4,14 @@
       "Bash(python -m pytest apps/tenders/tests/test_database_optimization.py -v --tb=short)",
       "Bash(python manage.py makemigrations tenders --name=add_performance_indexes)",
       "Bash(set DJANGO_SETTINGS_MODULE=config.settings_test)",
-      "Bash(set SECRET_KEY=test-secret-key)"
+      "Bash(set SECRET_KEY=test-secret-key)",
+      "Bash(python -m pytest apps/tenders/tests/ -v --tb=short -q)",
+      "Bash(python -m pytest apps/tenders/tests/test_database_optimization.py --cov=apps.tenders.models --cov-report=term-missing -v)",
+      "Read(//e//**)",
+      "Bash(ls -la frontend/e2e/*.spec.ts)",
+      "Bash(ls:*)",
+      "Bash(npx playwright:*)",
+      "Bash(xargs grep:*)"
     ]
   }
 }

@@ -3,7 +3,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { screen, waitFor, fireEvent } from '@testing-library/react';
+import { render } from './setup';
 import userEvent from '@testing-library/user-event';
 import { NotificationCenter } from '../components/NotificationCenter';
 import { api } from '../services/api';

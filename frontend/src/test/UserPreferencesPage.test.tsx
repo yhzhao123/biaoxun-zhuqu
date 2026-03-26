@@ -3,7 +3,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { screen, waitFor, fireEvent } from '@testing-library/react';
+import { render } from './setup';
 import { BrowserRouter } from 'react-router-dom';
 import { UserPreferencesPage } from '../pages/UserPreferencesPage';
 import type { UserPreferences } from '../types';

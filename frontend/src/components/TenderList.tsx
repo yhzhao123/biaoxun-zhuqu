@@ -29,7 +29,7 @@ export const TenderList: React.FC<TenderListProps> = ({ filter }) => {
       setTotalCount(response.count);
     } catch (err) {
       setError('加载招标列表失败');
-      console.error(err);
+      // Error is already handled by setError
     } finally {
       setLoading(false);
     }
@@ -137,7 +137,7 @@ export const TenderList: React.FC<TenderListProps> = ({ filter }) => {
                 <td className="px-6 py-4">
                   <Link
                     to={`/tenders/${tender.id}`}
-                    className="text-blue-600 hover:text-blue-900 font-medium"
+                    className="text-blue-600 hover:text-blue-900 font-medium transition-colors"
                   >
                     {tender.title}
                   </Link>
@@ -166,7 +166,7 @@ export const TenderList: React.FC<TenderListProps> = ({ filter }) => {
                       href={tender.source_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-blue-600 hover:text-blue-900 flex items-center gap-1"
+                      className="text-blue-600 hover:text-blue-900 flex items-center gap-1 transition-colors"
                       title={tender.source_site || '查看原文'}
                     >
                       <span className="truncate max-w-[150px]">{tender.source_site || '查看原文'}</span>
@@ -190,7 +190,7 @@ export const TenderList: React.FC<TenderListProps> = ({ filter }) => {
           <button
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={page === 1}
-            className="px-4 py-2 border rounded-md text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+            className="btn-press px-4 py-2 border rounded-md text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
           >
             上一页
           </button>
@@ -200,7 +200,7 @@ export const TenderList: React.FC<TenderListProps> = ({ filter }) => {
           <button
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             disabled={page === totalPages}
-            className="px-4 py-2 border rounded-md text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+            className="btn-press px-4 py-2 border rounded-md text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
           >
             下一页
           </button>

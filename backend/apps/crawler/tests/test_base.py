@@ -244,3 +244,29 @@ class TestCrawlTaskModel:
         assert task.pk is not None
         assert task.name == "Test Crawl Task"
         assert task.status == "pending"
+
+    @pytest.mark.django_db
+    def test_crawltask_has_source_foreign_key(self):
+        """CrawlTask should have a source foreign key to CrawlSource"""
+        from apps.crawler.models import CrawlTask, CrawlSource
+
+        # Create a CrawlSource first
+        source = CrawlSource.objects.create(
+            name='Test Source',
+            base_url='http://test.com',
+            status='active'
+        )
+
+        # Create CrawlTask with source foreign key
+        task = CrawlTask.objects.create(
+            name="Task with Source",
+            source_url="http://test.com/page",
+            source_site="test",
+            status="pending",
+            source=source
+        )
+
+        # Verify the relationship
+        assert task.source is not None
+        assert task.source.id == source.id
+        assert task.source.name == 'Test Source'

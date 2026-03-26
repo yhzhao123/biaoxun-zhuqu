@@ -3,6 +3,21 @@
 @tailwind utilities;
 
 :root {
+  /* Animation timing functions */
+  --ease-out: cubic-bezier(0.215, 0.61, 0.355, 1);
+  --ease-in-out: cubic-bezier(0.645, 0.045, 0.355, 1);
+  --ease-in: cubic-bezier(0.55, 0.055, 0.675, 0.19);
+  --ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+
+  /* Transition durations */
+  --transition-fast: 150ms;
+  --transition-normal: 250ms;
+  --transition-slow: 350ms;
+
+  /* Base transition settings */
+  --transition-duration: var(--transition-normal);
+  --transition-timing: var(--ease-out);
+
   font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   line-height: 1.5;
   font-weight: 400;
@@ -45,4 +60,56 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #a1a1a1;
+}
+
+/* Transition colors utility */
+.transition-colors {
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: var(--ease-out);
+  transition-duration: var(--transition-duration);
+}
+
+/* Touch device hover optimization */
+@media (hover: none) and (pointer: coarse) {
+  /* Disable hover effects on touch devices */
+  .hover\:bg-gray-50:hover,
+  .hover\:text-blue-900:hover {
+    background-color: transparent;
+    color: inherit;
+  }
+
+  /* Remove hover-dependent opacity changes */
+  .hover\:opacity-80:hover {
+    opacity: 1;
+  }
+}
+
+/* Enable hover states on devices with hover capability */
+@media (hover: hover) {
+  /* Keep hover effects for devices with mouse */
+}
+
+/* Prefers reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  /* Disable scroll behavior animation */
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+/* Button press feedback */
+.btn-press {
+  transition: transform var(--transition-fast) var(--ease-out);
+}
+
+.btn-press:active {
+  transform: scale(0.97);
 }

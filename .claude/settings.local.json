@@ -1,6 +1,6 @@
 {
   "permissions": {
-    "defaultMode": "bypassPermissions"，
+    "defaultMode": "bypassPermissions",
     "allow": [
       "Bash(./venv/Scripts/python.exe *)",
       "Bash(./venv/Scripts/pip.exe *)",
@@ -25,7 +25,6 @@
       "Bash(rm -rf *)",
       "Bash(dropdb *)",
       "Bash(DELETE *)"
-    ],
-    "defaultMode": "bypassPermissions"
+    ]
   }
 }

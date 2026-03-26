@@ -17,6 +17,7 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
+from rest_framework.authtoken.views import obtain_auth_token
 
 from apps.analysis.views.tenderer_analysis import TendererAnalysisViewSet
 
@@ -29,4 +30,6 @@ urlpatterns = [
     path('api/v1/', include('apps.tenders.urls')),
     path('api/v1/crawler/', include('apps.crawler.urls')),
     path('api/v1/users/', include('apps.users.urls')),
+    path('api/v1/llm/', include('apps.llm.urls')),
+    path('api/v1/auth/login/', obtain_auth_token, name='api_token_auth'),
 ]
