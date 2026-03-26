@@ -3,6 +3,11 @@ DynamicSpider - Generic dynamic crawler based on CrawlSource configuration
 
 This spider can crawl arbitrary tender websites based on CSS selectors,
 URL patterns, and other configuration stored in CrawlSource model.
+
+Features:
+- Multiple extraction strategies: Intelligent, LLM, CSS Selectors
+- Automatic page structure analysis
+- Fallback chain for robust extraction
 """
 
 import re
@@ -17,6 +22,7 @@ import requests
 
 from apps.crawler.spiders.base import BaseSpider
 from apps.tenders.models import TenderNotice
+from apps.crawler.extractors import ExtractionPipeline, ExtractionResult
 
 logger = logging.getLogger(__name__)
 
@@ -26,22 +32,32 @@ class DynamicSpider(BaseSpider):
     Generic dynamic spider that crawls websites based on CrawlSource configuration.
 
     Features:
-    - CSS selector-based content extraction
+    - Multiple extraction strategies with fallback chain
+    - Intelligent extraction (auto-detect page structure)
+    - LLM-based extraction (use configured LLM to parse content)
+    - CSS selector-based extraction (fallback)
     - Pagination support with URL pattern
     - TenderNotice creation and storage
     - Keyword search capability
     - Multiple date format parsing
     - Budget amount parsing with currency conversion
+
+    Extraction Priority:
+    1. Intelligent extraction (analyze page structure automatically)
+    2. LLM extraction (use AI to parse content)
+    3. CSS selectors (configured in CrawlSource)
     """
 
     name = 'dynamic_spider'
 
-    def __init__(self, crawl_source, **kwargs):
+    def __init__(self, crawl_source, use_llm: bool = True, use_intelligent: bool = True, **kwargs):
         """
         Initialize DynamicSpider with CrawlSource configuration.
 
         Args:
             crawl_source: CrawlSource model instance
+            use_llm: Enable LLM-based extraction (default: True)
+            use_intelligent: Enable intelligent extraction (default: True)
             **kwargs: Additional arguments for BaseSpider
         """
         # Extract configuration from CrawlSource
@@ -58,7 +74,7 @@ class DynamicSpider(BaseSpider):
         self.base_url = crawl_source.base_url
         self.delay_seconds = crawl_source.delay_seconds or 1
 
-        # CSS selectors
+        # CSS selectors (fallback)
         self.selector_title = crawl_source.selector_title or 'h1, .title'
         self.selector_content = crawl_source.selector_content or '.content, article'
         self.selector_publish_date = crawl_source.selector_publish_date or '.date, time'
@@ -67,6 +83,21 @@ class DynamicSpider(BaseSpider):
 
         # URL pattern for pagination
         self.list_url_pattern = crawl_source.list_url_pattern or ''
+
+        # Initialize extraction pipeline
+        self.extraction_pipeline = ExtractionPipeline(
+            use_llm=use_llm,
+            use_intelligent=use_intelligent
+        )
+
+        # Log extraction mode
+        extraction_modes = []
+        if use_intelligent:
+            extraction_modes.append('intelligent')
+        if use_llm:
+            extraction_modes.append('llm')
+        extraction_modes.append('selector')
+        logger.info(f"DynamicSpider initialized with extraction modes: {' -> '.join(extraction_modes)}")
 
     def extract_with_selector(self, html: str, selector: str) -> str:
         """
@@ -380,6 +411,11 @@ class DynamicSpider(BaseSpider):
         """
         Parse detail page to extract tender information.
 
+        Uses multiple extraction strategies with fallback chain:
+        1. Intelligent extraction (auto-detect page structure)
+        2. LLM extraction (AI-powered parsing)
+        3. CSS selectors (configured in CrawlSource)
+
         Args:
             html: Detail page HTML content
             source_url: Source URL of the page
@@ -388,30 +424,49 @@ class DynamicSpider(BaseSpider):
             Dictionary with extracted data
         """
         try:
-            # Extract fields using configured selectors
-            title = self.extract_with_selector(html, self.selector_title)
-            content = self.extract_with_selector(html, self.selector_content)
-            tenderer = self.extract_with_selector(html, self.selector_tenderer)
-            date_str = self.extract_with_selector(html, self.selector_publish_date)
-            budget_str = self.extract_with_selector(html, self.selector_budget)
-
-            # Parse dates and budgets
-            publish_date = self.parse_date(date_str)
-            budget = self.parse_budget(budget_str)
-
-            # Build result dictionary
-            result = {
-                'title': title,
-                'description': content,
-                'tenderer': tenderer,
-                'publish_date': publish_date,
-                'budget': budget,
-                'source_url': source_url,
-                'notice_type': 'bidding'  # Default, can be inferred from content
+            # Prepare selectors for fallback
+            selectors = {
+                'title': self.selector_title,
+                'content': self.selector_content,
+                'publish_date': self.selector_publish_date,
+                'tenderer': self.selector_tenderer,
+                'budget': self.selector_budget,
             }
 
+            # Use extraction pipeline
+            extraction_result = self.extraction_pipeline.extract(
+                html=html,
+                selectors=selectors,
+                source_url=source_url
+            )
+
+            # Log extraction method used
+            logger.info(f"Extraction method: {extraction_result.extraction_method}, "
+                       f"confidence: {extraction_result.confidence:.2f}")
+
+            # Build result dictionary from extraction result
+            result = {
+                'title': extraction_result.title,
+                'description': extraction_result.description,
+                'tenderer': extraction_result.tenderer,
+                'publish_date': extraction_result.publish_date,
+                'budget': extraction_result.budget,
+                'source_url': source_url,
+                'notice_type': 'bidding',  # Default, can be inferred from content
+                'extraction_method': extraction_result.extraction_method,
+                'extraction_confidence': extraction_result.confidence,
+            }
+
+            # Get additional data from extraction result
+            if extraction_result.data:
+                result['project_number'] = extraction_result.data.get('project_number')
+                result['region'] = extraction_result.data.get('region')
+                result['industry'] = extraction_result.data.get('industry')
+
             # Determine notice type from content
-            if '中标' in title or '中标' in content:
+            title = result.get('title') or ''
+            description = result.get('description') or ''
+            if '中标' in title or '中标' in description or '成交' in title or '成交' in description:
                 result['notice_type'] = 'win'
 
             return result
@@ -431,8 +486,8 @@ class DynamicSpider(BaseSpider):
             Created TenderNotice instance or None
         """
         try:
-            title = data.get('title', '').strip()
-            source_url = data.get('source_url', '').strip()
+            title = data.get('title', '').strip() if data.get('title') else ''
+            source_url = data.get('source_url', '').strip() if data.get('source_url') else ''
 
             if not title or not source_url:
                 logger.warning("Missing required fields: title or source_url")
@@ -447,12 +502,12 @@ class DynamicSpider(BaseSpider):
             # Determine notice type from content
             # Check title and description for "中标" or "WIN" keyword
             notice_type = data.get('notice_type', 'bidding')
-            description = data.get('description', '')
+            description = data.get('description', '') or ''
 
             if notice_type == 'bidding':
                 # Try to detect win notice from content
                 # Check for Chinese "中标" or English "WIN" keyword
-                if '中标' in title or '中标' in description or 'WIN' in title or 'WIN' in description:
+                if '中标' in title or '中标' in description or 'WIN' in title or 'WIN' in description or '成交' in title or '成交' in description:
                     notice_type = 'win'
 
             # Generate notice_id
@@ -460,21 +515,36 @@ class DynamicSpider(BaseSpider):
             import uuid
             notice_id = f"{slugify(title)[:30]}-{uuid.uuid4().hex[:8]}"
 
-            notice = TenderNotice.objects.create(
-                notice_id=notice_id,
-                title=title,
-                description=data.get('description', ''),
-                tenderer=data.get('tenderer', ''),
-                budget=data.get('budget'),
-                budget_amount=data.get('budget'),  # Use same value for now
-                publish_date=data.get('publish_date'),
-                source_url=source_url,
-                source_site=self.crawl_source.name,
-                notice_type=notice_type,
-                status='active'
-            )
+            # Prepare fields
+            create_kwargs = {
+                'notice_id': notice_id,
+                'title': title,
+                'description': description,
+                'tenderer': data.get('tenderer', '') or '',
+                'budget': data.get('budget'),
+                'budget_amount': data.get('budget'),  # Use same value for now
+                'publish_date': data.get('publish_date'),
+                'source_url': source_url,
+                'source_site': self.crawl_source.name,
+                'notice_type': notice_type,
+                'status': 'active'
+            }
 
-            logger.info(f"Created TenderNotice: {notice.notice_id}")
+            # Add optional fields if available
+            if data.get('project_number'):
+                create_kwargs['project_number'] = data.get('project_number')
+            if data.get('region'):
+                create_kwargs['region'] = data.get('region')
+            if data.get('industry'):
+                create_kwargs['industry'] = data.get('industry')
+
+            notice = TenderNotice.objects.create(**create_kwargs)
+
+            # Log extraction method used
+            extraction_method = data.get('extraction_method', 'unknown')
+            confidence = data.get('extraction_confidence', 0)
+            logger.info(f"Created TenderNotice: {notice.notice_id} "
+                       f"(method: {extraction_method}, confidence: {confidence:.2f})")
             return notice
 
         except Exception as e:
