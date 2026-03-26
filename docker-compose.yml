@@ -75,6 +75,8 @@ services:
       - POSTGRES_PORT=5432
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-biaoxun}
       - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - DJANGO_SETTINGS_MODULE=config.settings
     depends_on:
       db:
@@ -96,6 +98,8 @@ services:
       - POSTGRES_HOST=db
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/biaoxun
       - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - DJANGO_SETTINGS_MODULE=config.settings
     depends_on:
       - redis
@@ -115,6 +119,8 @@ services:
       - POSTGRES_HOST=db
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/biaoxun
       - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - DJANGO_SETTINGS_MODULE=config.settings
     depends_on:
       - redis
