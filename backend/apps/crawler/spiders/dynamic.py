@@ -442,7 +442,7 @@ class DynamicSpider(BaseSpider):
                 logger.info(f"Page {page}: extracted {len(page_items)} items, created {len([i for i in page_items if i.get('_created')])} notices")
 
                 # Delay between requests
-                self.delay()
+                self._random_delay()
 
             except requests.RequestException as e:
                 logger.error(f"API request failed on page {page}: {e}")
