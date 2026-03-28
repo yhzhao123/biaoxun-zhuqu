@@ -113,6 +113,30 @@ class TenderNotice(TimestampMixin):
     else:
         search_vector = models.TextField(null=True, blank=True, verbose_name='搜索向量(SQLite)')
 
+    # PDF正文相关字段
+    main_pdf_content = models.TextField(blank=True, verbose_name='PDF正文内容')
+    main_pdf_url = models.URLField(max_length=500, blank=True, verbose_name='PDF原文URL')
+
+    # 其他重要信息（从PDF提取）
+    qualification_requirements = models.TextField(blank=True, verbose_name='投标人资格要求')
+    delivery_period = models.CharField(max_length=200, blank=True, verbose_name='交付期限')
+    warranty_period = models.CharField(max_length=200, blank=True, verbose_name='质保期')
+    payment_terms = models.TextField(blank=True, verbose_name='付款方式')
+    evaluation_method = models.CharField(max_length=200, blank=True, verbose_name='评标方法')
+
+    # 提取方法记录
+    extraction_method = models.CharField(
+        max_length=50,
+        blank=True,
+        default='unknown',
+        verbose_name='提取方法'
+    )
+    extraction_confidence = models.FloatField(
+        null=True,
+        blank=True,
+        verbose_name='提取置信度'
+    )
+
     # 来源相关
     source_url = models.URLField(max_length=500, blank=True, verbose_name='来源URL')
     source_site = models.CharField(max_length=100, blank=True, verbose_name='来源网站')
@@ -189,3 +213,108 @@ class TenderNotice(TimestampMixin):
             if code == self.notice_type:
                 return name
         return self.notice_type
+
+
+class TenderItem(models.Model):
+    """
+    招标采购物品/标的模型
+    """
+    tender_notice = models.ForeignKey(
+        TenderNotice,
+        on_delete=models.CASCADE,
+        related_name='items',
+        verbose_name='关联招标公告'
+    )
+
+    # 基本信息
+    name = models.CharField(max_length=200, verbose_name='物品名称')
+    specification = models.TextField(blank=True, verbose_name='规格型号')
+    category = models.CharField(max_length=100, blank=True, verbose_name='物品类别/品目')
+
+    # 数量信息
+    quantity = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name='数量'
+    )
+    unit = models.CharField(max_length=50, blank=True, verbose_name='单位')
+
+    # 预算信息
+    budget_unit_price = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name='预算单价'
+    )
+    budget_total_price = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name='预算总价'
+    )
+
+    # 技术要求
+    technical_requirements = models.TextField(blank=True, verbose_name='技术要求/参数')
+    delivery_requirements = models.TextField(blank=True, verbose_name='交付要求')
+
+    # 排序
+    sort_order = models.PositiveIntegerField(default=0, verbose_name='排序')
+
+    # 元数据
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+
+    class Meta:
+        db_table = 'tender_items'
+        verbose_name = '采购物品'
+        verbose_name_plural = '采购物品'
+        ordering = ['sort_order', 'id']
+
+    def __str__(self):
+        return f"{self.name} ({self.quantity} {self.unit})"
+
+
+class TenderTechnicalParameter(models.Model):
+    """
+    招标技术参数模型
+    """
+    tender_notice = models.ForeignKey(
+        TenderNotice,
+        on_delete=models.CASCADE,
+        related_name='technical_parameters',
+        verbose_name='关联招标公告'
+    )
+
+    # 参数信息
+    name = models.CharField(max_length=200, verbose_name='参数名称')
+    value = models.TextField(verbose_name='参数值/要求')
+    category = models.CharField(
+        max_length=50,
+        blank=True,
+        verbose_name='参数类别',
+        help_text='如：性能指标、功能要求、物理规格等'
+    )
+    is_mandatory = models.BooleanField(
+        default=True,
+        verbose_name='是否必须满足'
+    )
+
+    # 排序
+    sort_order = models.PositiveIntegerField(default=0, verbose_name='排序')
+
+    # 元数据
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+
+    class Meta:
+        db_table = 'tender_technical_parameters'
+        verbose_name = '技术参数'
+        verbose_name_plural = '技术参数'
+        ordering = ['category', 'sort_order', 'id']
+
+    def __str__(self):
+        return f"[{self.category}] {self.name}"

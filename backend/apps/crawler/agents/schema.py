@@ -261,4 +261,14 @@ class TenderNoticeSchema:
             'region': self.region or '',
             'industry': self.industry or '',
             'winner': self.winner or '',
+            # PDF相关字段
+            'main_pdf_content': self.description or '',  # 使用description存储PDF内容
+            'main_pdf_url': self.source_url or '',
+            'qualification_requirements': self.qualification_requirements or '',
+            'delivery_period': self.delivery_period or '',
+            'warranty_period': self.warranty_period or '',
+            'payment_terms': self.payment_terms or '',
+            'evaluation_method': self.evaluation_method or '',
+            'extraction_method': self.extraction_method or 'unknown',
+            'extraction_confidence': self.extraction_confidence or 0.0,
         }

@@ -338,11 +338,20 @@ class Command(BaseCommand):
                     if hasattr(existing, key):
                         setattr(existing, key, value)
                 existing.save()
+                tender_notice = existing
                 self.stdout.write(f"  Updated: {fields['title'][:50]}...")
             else:
                 # Create new
-                TenderNotice.objects.create(**fields)
+                tender_notice = TenderNotice.objects.create(**fields)
                 self.stdout.write(f"  Created: {fields['title'][:50]}...")
+
+            # 保存采购物品
+            if result.items:
+                self._save_tender_items(tender_notice, result.items)
+
+            # 保存技术参数
+            if result.technical_parameters:
+                self._save_technical_parameters(tender_notice, result.technical_parameters)
 
             return True
 
@@ -352,3 +361,54 @@ class Command(BaseCommand):
                 self.style.ERROR(f"  Failed to save: {e}")
             )
             return False
+
+    def _save_tender_items(self, tender_notice, items):
+        """保存采购物品"""
+        from apps.tenders.models import TenderItem
+
+        # 先删除旧的
+        tender_notice.items.all().delete()
+
+        # 创建新的
+        for i, item in enumerate(items):
+            try:
+                TenderItem.objects.create(
+                    tender_notice=tender_notice,
+                    name=item.name or 'Unknown',
+                    specification=item.specification or '',
+                    category=item.category or '',
+                    quantity=item.quantity,
+                    unit=item.unit or '',
+                    budget_unit_price=item.budget_unit_price,
+                    budget_total_price=item.budget_total_price,
+                    technical_requirements=item.technical_requirements or '',
+                    delivery_requirements=item.delivery_requirements or '',
+                    sort_order=i
+                )
+            except Exception as e:
+                logger.warning(f"Failed to save tender item: {e}")
+
+        self.stdout.write(f"    Saved {len(items)} procurement items")
+
+    def _save_technical_parameters(self, tender_notice, parameters):
+        """保存技术参数"""
+        from apps.tenders.models import TenderTechnicalParameter
+
+        # 先删除旧的
+        tender_notice.technical_parameters.all().delete()
+
+        # 创建新的
+        for i, param in enumerate(parameters):
+            try:
+                TenderTechnicalParameter.objects.create(
+                    tender_notice=tender_notice,
+                    name=param.name or 'Unknown',
+                    value=param.value or '',
+                    category=param.category or '其他',
+                    is_mandatory=param.is_mandatory,
+                    sort_order=i
+                )
+            except Exception as e:
+                logger.warning(f"Failed to save technical parameter: {e}")
+
+        self.stdout.write(f"    Saved {len(parameters)} technical parameters")
