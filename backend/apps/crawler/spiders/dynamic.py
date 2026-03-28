@@ -112,12 +112,49 @@ class DynamicSpider(BaseSpider):
         self.max_pages = getattr(crawl_source, 'max_pages', 10) or 10
 
         # Initialize extraction pipeline for HTML/intelligent/LLM modes
+        use_structured_llm = self.extraction_mode in ('llm', 'auto', 'structured_llm')
         use_llm = self.extraction_mode in ('llm', 'auto')
         use_intelligent = self.extraction_mode in ('intelligent', 'auto')
 
+        from apps.crawler.extractors import ExtractionConfig
+
+        extraction_config = ExtractionConfig(
+            max_retries=3,
+            retry_delay=1.0,
+            timeout_seconds=60,
+            use_few_shot=True,
+            min_confidence=0.4
+        )
+
+        # 启用4智能体团队
+        from apps.crawler.agents import (
+            ConcurrencyConfig, RetryConfig, CacheConfig, FieldOptimizationConfig
+        )
+
         self.extraction_pipeline = ExtractionPipeline(
+            use_structured_llm=use_structured_llm,
             use_llm=use_llm,
-            use_intelligent=use_intelligent
+            use_intelligent=use_intelligent,
+            extraction_config=extraction_config,
+            use_agent_teams=True,  # 启用4智能体团队
+            concurrency_config=ConcurrencyConfig(
+                max_concurrent_requests=5,
+                max_concurrent_llm_calls=2,  # 限制LLM并发避免429
+                request_delay=self.delay_seconds,
+            ),
+            retry_config=RetryConfig(
+                max_retries=3,
+                base_delay=self.delay_seconds,
+                jitter=True,
+            ),
+            cache_config=CacheConfig(
+                default_ttl=7200,  # 2小时缓存
+                disk_cache_dir=".cache/crawler/dynamic_spider",
+            ),
+            field_optimization_config=FieldOptimizationConfig(
+                use_regex_preprocessing=True,
+                llm_fallback_threshold=0.6,
+            ),
         )
 
         # Log initialization
@@ -511,6 +548,26 @@ class DynamicSpider(BaseSpider):
 
         return items
 
+    def _clean_html_tags(self, text: str) -> str:
+        """
+        Remove HTML tags from text and return clean text.
+
+        Args:
+            text: Text that may contain HTML tags
+
+        Returns:
+            Clean text without HTML tags
+        """
+        if not text:
+            return ''
+
+        try:
+            soup = BeautifulSoup(str(text), 'html.parser')
+            return soup.get_text(strip=True)
+        except Exception:
+            # Fallback: use regex to remove HTML tags
+            return re.sub(r'<[^>]+>', '', str(text)).strip()
+
     def _extract_api_fields(self, data: Dict) -> Optional[Dict[str, Any]]:
         """
         Extract fields from API item data.
@@ -536,12 +593,16 @@ class DynamicSpider(BaseSpider):
                     return default
             return value if value is not None else default
 
-        # Extract fields using configured paths
-        title = get_field(data, self.api_field_title) or data.get('title', '')
+        # Extract fields using configured paths and clean HTML tags
+        title = self._clean_html_tags(
+            get_field(data, self.api_field_title) or data.get('title', '')
+        )
         url = get_field(data, self.api_field_url) or data.get('url', '')
         date_str = get_field(data, self.api_field_date) or data.get('time', '')
         budget_str = get_field(data, self.api_field_budget) or data.get('budget', '')
-        tenderer = get_field(data, self.api_field_tenderer) or data.get('tenderer', '')
+        tenderer = self._clean_html_tags(
+            get_field(data, self.api_field_tenderer) or data.get('tenderer', '')
+        )
 
         # Build URL if relative
         if url and not url.startswith('http'):
@@ -600,7 +661,8 @@ class DynamicSpider(BaseSpider):
                             detail_response = self.fetch(detail_url)
                             notice_data = self.parse_detail(
                                 detail_response.text,
-                                source_url=detail_url
+                                source_url=detail_url,
+                                list_item=item,  # 传递列表项用于字段优化
                             )
                             if notice_data:
                                 notice = self.create_tender_notice(notice_data)
@@ -721,24 +783,27 @@ class DynamicSpider(BaseSpider):
 
         return items
 
-    def parse_detail(self, html: str, source_url: str = '') -> Optional[Dict[str, Any]]:
+    def parse_detail(self, html: str, source_url: str = '', list_item: Dict = None) -> Optional[Dict[str, Any]]:
         """
-        Parse detail page to extract tender information.
+        解析详情页提取招标信息
 
-        Uses multiple extraction strategies with fallback chain:
-        1. Intelligent extraction (auto-detect page structure)
-        2. LLM extraction (AI-powered parsing)
-        3. CSS selectors (configured in CrawlSource)
+        使用提取管道（优先级）：
+        1. 字段优化提取（列表数据 + 正则预处理）
+        2. 结构化LLM提取（新）
+        3. 智能提取
+        4. 传统LLM提取
+        5. CSS选择器（回退）
 
         Args:
-            html: Detail page HTML content
-            source_url: Source URL of the page
+            html: 详情页HTML内容
+            source_url: 页面来源URL
+            list_item: 列表页数据（用于字段优化）
 
         Returns:
-            Dictionary with extracted data
+            提取的数据字典
         """
         try:
-            # Prepare selectors for fallback
+            # 准备选择器作为回退
             selectors = {
                 'title': self.selector_title,
                 'content': self.selector_content,
@@ -747,39 +812,51 @@ class DynamicSpider(BaseSpider):
                 'budget': self.selector_budget,
             }
 
-            # Use extraction pipeline
+            # 使用提取管道（传入list_item用于字段优化）
             extraction_result = self.extraction_pipeline.extract(
                 html=html,
                 selectors=selectors,
-                source_url=source_url
+                source_url=source_url,
+                list_item=list_item,
             )
 
-            # Log extraction method used
-            logger.info(f"Extraction method: {extraction_result.extraction_method}, "
-                       f"confidence: {extraction_result.confidence:.2f}")
+            # 记录提取方法
+            logger.info(
+                f"提取方法: {extraction_result.extraction_method}, "
+                f"置信度: {extraction_result.confidence:.2f}"
+            )
 
-            # Build result dictionary from extraction result
-            result = {
-                'title': extraction_result.title,
-                'description': extraction_result.description,
-                'tenderer': extraction_result.tenderer,
-                'publish_date': extraction_result.publish_date,
-                'budget': extraction_result.budget,
-                'source_url': source_url,
-                'notice_type': 'bidding',  # Default, can be inferred from content
-                'extraction_method': extraction_result.extraction_method,
-                'extraction_confidence': extraction_result.confidence,
-            }
+            # 使用新的 to_model_fields 方法获取标准字段
+            result = extraction_result.to_model_fields()
 
-            # Get additional data from extraction result
+            # 添加额外字段
+            result['source_url'] = source_url
+            result['extraction_method'] = extraction_result.extraction_method
+            result['extraction_confidence'] = extraction_result.confidence
+
+            # 从原始数据中获取额外字段
             if extraction_result.data:
-                result['project_number'] = extraction_result.data.get('project_number')
-                result['region'] = extraction_result.data.get('region')
-                result['industry'] = extraction_result.data.get('industry')
+                for field in ['project_number', 'winner', 'contact_person',
+                             'contact_phone', 'deadline_date']:
+                    if field in extraction_result.data:
+                        result[field] = extraction_result.data[field]
 
-            # Determine notice type from content
-            title = result.get('title') or ''
-            description = result.get('description') or ''
+            # 根据标题判断公告类型
+            title = result.get('title', '')
+            description = result.get('description', '')
+            notice_type = result.get('notice_type', 'bidding')
+
+            if notice_type == 'bidding':
+                if '中标' in title or '中标' in description or '成交' in title or '成交' in description:
+                    result['notice_type'] = 'win'
+                elif '变更' in title or '变更' in description:
+                    result['notice_type'] = 'change'
+
+            return result
+
+        except Exception as e:
+            logger.error(f"解析详情页失败 {source_url}: {e}")
+            return None
             if '中标' in title or '中标' in description or '成交' in title or '成交' in description:
                 result['notice_type'] = 'win'
 
@@ -800,8 +877,11 @@ class DynamicSpider(BaseSpider):
             Created TenderNotice instance or None
         """
         try:
-            title = data.get('title', '').strip() if data.get('title') else ''
+            # Clean HTML tags from text fields before saving
+            title = self._clean_html_tags(data.get('title', '')).strip() if data.get('title') else ''
             source_url = data.get('source_url', '').strip() if data.get('source_url') else ''
+            description = self._clean_html_tags(data.get('description', '')).strip() if data.get('description') else ''
+            tenderer = self._clean_html_tags(data.get('tenderer', '')).strip() if data.get('tenderer') else ''
 
             if not title or not source_url:
                 logger.warning("Missing required fields: title or source_url")
@@ -816,7 +896,6 @@ class DynamicSpider(BaseSpider):
             # Determine notice type from content
             # Check title and description for "中标" or "WIN" keyword
             notice_type = data.get('notice_type', 'bidding')
-            description = data.get('description', '') or ''
 
             if notice_type == 'bidding':
                 # Try to detect win notice from content
@@ -834,7 +913,7 @@ class DynamicSpider(BaseSpider):
                 'notice_id': notice_id,
                 'title': title,
                 'description': description,
-                'tenderer': data.get('tenderer', '') or '',
+                'tenderer': tenderer,
                 'budget': data.get('budget'),
                 'budget_amount': data.get('budget'),  # Use same value for now
                 'publish_date': data.get('publish_date'),
@@ -844,13 +923,13 @@ class DynamicSpider(BaseSpider):
                 'status': 'active'
             }
 
-            # Add optional fields if available
+            # Add optional fields if available (also clean HTML)
             if data.get('project_number'):
                 create_kwargs['project_number'] = data.get('project_number')
             if data.get('region'):
-                create_kwargs['region'] = data.get('region')
+                create_kwargs['region'] = self._clean_html_tags(data.get('region')).strip()
             if data.get('industry'):
-                create_kwargs['industry'] = data.get('industry')
+                create_kwargs['industry'] = self._clean_html_tags(data.get('industry')).strip()
 
             notice = TenderNotice.objects.create(**create_kwargs)
 

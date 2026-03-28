@@ -52,11 +52,14 @@ class TenderViewSet(viewsets.ViewSet):
                 Q(tenderer__icontains=search)
             )
 
+        # 获取总数（在分页前）
+        total_count = queryset.count()
+
         # 分页
         page = self.paginate_queryset(queryset)
         if page is not None:
             data = [self._serialize_tender(t) for t in page]
-            return self.get_paginated_response(data)
+            return self.get_paginated_response(data, total_count)
 
         # 手动序列化
         data = [self._serialize_tender(t) for t in queryset]
@@ -91,10 +94,13 @@ class TenderViewSet(viewsets.ViewSet):
             Q(tenderer__icontains=query)
         )
 
+        # 获取总数（在分页前）
+        total_count = queryset.count()
+
         page = self.paginate_queryset(queryset)
         if page is not None:
             data = [self._serialize_tender(t) for t in page]
-            return self.get_paginated_response(data)
+            return self.get_paginated_response(data, total_count)
 
         data = [self._serialize_tender(t) for t in queryset]
         return Response({
@@ -150,10 +156,10 @@ class TenderViewSet(viewsets.ViewSet):
         end = start + page_size
         return queryset[start:end]
 
-    def get_paginated_response(self, data):
+    def get_paginated_response(self, data, total_count=None):
         """返回分页响应"""
         return Response({
-            'count': len(data),
+            'count': total_count if total_count is not None else len(data),
             'results': data,
             'page': int(self.request.query_params.get('page', 1)),
             'page_size': int(self.request.query_params.get('page_size', 20))
