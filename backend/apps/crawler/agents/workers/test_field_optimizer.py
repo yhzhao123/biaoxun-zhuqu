@@ -9,6 +9,8 @@ Test cases covering:
 - Full optimization workflow
 """
 
+import asyncio
+import pytest
 import unittest
 from datetime import datetime
 from decimal import Decimal
@@ -303,7 +305,8 @@ class TestFieldOptimizationAgent(unittest.TestCase):
 class TestOptimizationWorkflow(unittest.TestCase):
     """Integration tests for full optimization workflow"""
 
-    def test_optimize_extraction_avoids_llm(self):
+    @pytest.mark.asyncio
+    async def test_optimize_extraction_avoids_llm(self):
         """Test that complete list data avoids LLM call"""
         config = FieldOptimizationConfig()
         agent = FieldOptimizationAgent(config)
@@ -318,7 +321,7 @@ class TestOptimizationWorkflow(unittest.TestCase):
 
         mock_llm = MockLLMExtractor()
 
-        result = agent.optimize_extraction(
+        result = await agent.optimize_extraction(
             list_item=list_item,
             html='',  # No HTML
             url='http://example.com',
@@ -333,7 +336,8 @@ class TestOptimizationWorkflow(unittest.TestCase):
         self.assertIn('title', result.data)
         self.assertIn('tenderer', result.data)
 
-    def test_optimize_extraction_uses_llm_for_missing(self):
+    @pytest.mark.asyncio
+    async def test_optimize_extraction_uses_llm_for_missing(self):
         """Test that missing fields trigger LLM extraction"""
         config = FieldOptimizationConfig()
         agent = FieldOptimizationAgent(config)
@@ -353,7 +357,7 @@ class TestOptimizationWorkflow(unittest.TestCase):
         </body></html>
         """
 
-        result = agent.optimize_extraction(
+        result = await agent.optimize_extraction(
             list_item=list_item,
             html=html,
             url='http://example.com',

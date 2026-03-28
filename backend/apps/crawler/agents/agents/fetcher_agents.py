@@ -251,6 +251,7 @@ class DetailFetcherAgent:
         try:
             logger.info(f"Fetching detail page: {url}")
 
+            # Use a single session for both HTML and PDF download (maintains cookies)
             async with aiohttp.ClientSession(headers=self.headers) as session:
                 async with session.get(url, timeout=aiohttp.ClientTimeout(total=30)) as response:
                     response.raise_for_status()
@@ -262,31 +263,37 @@ class DetailFetcherAgent:
 
                     html = await response.text()
 
-            # 检查HTML中是否包含正文PDF链接（某些网站详情页是框架，主要内容在PDF中）
-            main_pdf_info = self._detect_main_pdf(html, url)
-            if main_pdf_info:
-                logger.info(f"Detected main PDF: {main_pdf_info['url']}")
-                pdf_content = await self._download_pdf_content(main_pdf_info['url'])
-                if pdf_content:
-                    return DetailResult(
-                        url=url,
-                        html=html,
-                        attachments=self._extract_attachments(html, url),
-                        list_data=list_item,
-                        main_pdf_content=pdf_content,
-                        main_pdf_url=main_pdf_info['url'],
-                        main_pdf_filename=main_pdf_info.get('filename', 'main.pdf')
+                # 检查HTML中是否包含正文PDF链接（某些网站详情页是框架，主要内容在PDF中）
+                main_pdf_info = self._detect_main_pdf(html, url)
+                if main_pdf_info:
+                    logger.info(f"Detected main PDF: {main_pdf_info['url']}")
+                    # Pass session to maintain authentication
+                    pdf_content = await self._download_pdf_content_with_session(
+                        session, main_pdf_info['url'], url
                     )
+                    if pdf_content:
+                        logger.info(f"PDF content extracted: {len(pdf_content)} chars")
+                        return DetailResult(
+                            url=url,
+                            html=html,
+                            attachments=self._extract_attachments(html, url),
+                            list_data=list_item,
+                            main_pdf_content=pdf_content,
+                            main_pdf_url=main_pdf_info['url'],
+                            main_pdf_filename=main_pdf_info.get('filename', 'main.pdf')
+                        )
+                    else:
+                        logger.warning(f"Failed to download PDF content from {main_pdf_info['url']}")
 
-            # 提取附件
-            attachments = self._extract_attachments(html, url)
+                # 提取附件
+                attachments = self._extract_attachments(html, url)
 
-            return DetailResult(
-                url=url,
-                html=html,
-                attachments=attachments,
-                list_data=list_item
-            )
+                return DetailResult(
+                    url=url,
+                    html=html,
+                    attachments=attachments,
+                    list_data=list_item
+                )
 
         except Exception as e:
             logger.error(f"Failed to fetch detail page {url}: {e}")
@@ -360,7 +367,15 @@ class DetailFetcherAgent:
                 href = link['href']
                 text = link.get_text(strip=True)
 
-                if not href.lower().endswith('.pdf'):
+                # Check if this is a PDF link by:
+                # 1. URL ends with .pdf, OR
+                # 2. Link text contains .pdf (e.g., "招标文件正文.pdf")
+                is_pdf_link = (
+                    href.lower().endswith('.pdf') or
+                    '.pdf' in text.lower()
+                )
+
+                if not is_pdf_link:
                     continue
 
                 full_url = urljoin(base_url, href)
@@ -413,6 +428,68 @@ class DetailFetcherAgent:
             logger.warning(f"Failed to detect main PDF: {e}")
 
         return None
+
+    async def _download_pdf_content_with_session(
+        self,
+        session: aiohttp.ClientSession,
+        url: str,
+        referer: str
+    ) -> Optional[str]:
+        """下载PDF并提取文本内容（使用已存在的session以保持认证）"""
+        try:
+            # URL安全检查
+            if not self._is_safe_url(url, url):
+                logger.warning(f"Unsafe PDF URL blocked: {url}")
+                return None
+
+            # Add referer header for authentication
+            headers = {'Referer': referer}
+
+            async with session.get(
+                url,
+                headers=headers,
+                timeout=aiohttp.ClientTimeout(total=60)
+            ) as response:
+                response.raise_for_status()
+
+                # 检查Content-Type
+                content_type = response.headers.get('Content-Type', '').lower()
+                logger.info(f"PDF download response: {response.status}, Content-Type: {content_type}")
+
+                # 检查文件大小
+                content_length = response.headers.get('Content-Length')
+                if content_length:
+                    size = int(content_length)
+                    if size > MAX_PDF_SIZE:
+                        logger.warning(f"PDF too large: {size} bytes")
+                        return None
+                    logger.info(f"PDF size: {size} bytes")
+
+                pdf_bytes = await response.read()
+
+                # 双重检查
+                if len(pdf_bytes) > MAX_PDF_SIZE:
+                    logger.warning(f"PDF content exceeds limit: {len(pdf_bytes)} bytes")
+                    return None
+
+                # 验证是否为PDF
+                if pdf_bytes[:4] != b'%PDF':
+                    logger.warning(f"Downloaded content is not a PDF (starts with: {pdf_bytes[:20]})")
+                    # Try to decode as text for debugging
+                    try:
+                        text_preview = pdf_bytes[:200].decode('utf-8', errors='ignore')
+                        logger.warning(f"Content preview: {text_preview}")
+                    except:
+                        pass
+                    return None
+
+                extracted_text = self._extract_text_from_pdf_bytes(pdf_bytes)
+                logger.info(f"Extracted {len(extracted_text)} chars from PDF")
+                return extracted_text
+
+        except Exception as e:
+            logger.error(f"Failed to download PDF {url}: {e}")
+            return None
 
     async def _download_pdf_content(self, url: str) -> Optional[str]:
         """下载PDF并提取文本内容"""

@@ -384,7 +384,7 @@ class TenderOrchestratorV2:
                 contact_phone=basic_extracted.get('contact_phone'),
                 project_number=basic_extracted.get('project_number'),
                 budget_amount=basic_extracted.get('budget_amount'),
-                description=pdf_content[:2000] if len(pdf_content) > 2000 else pdf_content,
+                description=pdf_content[:5000] if len(pdf_content) > 5000 else pdf_content,
                 source_url=url,
                 source_site=list_item.get('source_site', ''),
                 extraction_method='pdf_detailed_analysis',
@@ -421,9 +421,9 @@ class TenderOrchestratorV2:
         # 从list_item获取标题
         result['title'] = list_item.get('title')
 
-        # 正则提取字段
+        # 正则提取字段（支持带空格的格式如"采 购 人"）
         patterns = {
-            'tenderer': r'(招标人|采购人|采购单位)[：:]\s*([^\n]+)',
+            'tenderer': r'(?:采\s*购\s*人|招\s*标\s*人|采\s*购\s*单\s*位)[：:]\s*([^\n]+)',
             'contact_person': r'(联系人|经办人)[：:]\s*([^\n]+)',
             'contact_phone': r'(联系电话|联系方式|电话)[：:]\s*([^\n]+)',
             'project_number': r'(项目编号|采购编号|招标编号)[：:]\s*([^\n]+)',
@@ -433,7 +433,12 @@ class TenderOrchestratorV2:
         for field, pattern in patterns.items():
             match = re.search(pattern, text)
             if match:
-                result[field] = match.group(2).strip()
+                # For patterns with non-capturing groups (?:...), use group(1)
+                # For patterns with capturing groups, use the last group
+                if field == 'tenderer':
+                    result[field] = match.group(1).strip()
+                else:
+                    result[field] = match.group(2).strip() if len(match.groups()) > 1 else match.group(1).strip()
 
         # 提取预算金额并转换
         if 'budget_amount' in result:

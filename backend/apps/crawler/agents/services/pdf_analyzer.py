@@ -99,6 +99,7 @@ class PDFContentAnalyzer:
         常见的表格格式：
         - 序号、名称、规格、数量、单位、预算单价、预算总价
         - 品目、标的名称、数量、单位、技术参数
+        - | 序号 | 标的名称 | 数量 | 单位 | 预算单价 |
         """
         items = []
 
@@ -108,9 +109,13 @@ class PDFContentAnalyzer:
             # 匹配类似 "1. 服务器 2台 规格:xxx" 的行
             r'(?:^|\n)\s*(\d+)[\.\、\s]+([^\n]{2,50}?)(\d+(?:\.\d+)?)\s*(台|套|个|件|套|批|组|辆|艘|架|份|套)(?:\s|[^\d]|$)',
             # 匹配 "物品名称: xxx 数量: x" 格式
-            r'(采购标的|采购物品|货物名称|设备名称|商品名称|项目名称)[：:]*\s*([^\n]{2,50}?)[,，\s]+(?:数量|采购数量)[：:]*\s*(\d+(?:\.\d+)?)\s*(台|套|个|件|批|组|辆)?',
-            # 匹配表格行
+            r'(采购标的|采购物品|货物名称|设备名称、商品名称|项目名称)[：:]*\s*([^\n]{2,50}?)[,，\s]+(?:数量|采购数量)[：:]*\s*(\d+(?:\.\d+)?)\s*(台|套|个|件|批|组|辆)?',
+            # 匹配表格行 (带 | 分隔符)
             r'\|\s*(\d+)\s*\|\s*([^|]{2,50})\s*\|\s*([^|]*)\s*\|\s*(\d+(?:\.\d+)?)\s*\|\s*(台|套|个|件|批|组)?\s*\|',
+            # 匹配表格行 (空格分隔)
+            r'(?:^|\n)\s*(\d+)\s+([^\s]{2,40})\s+(\d+(?:\.\d+)?)\s+(台|套|个|件|批|组|辆)\s*(?:\n|$)',
+            # 匹配带单位的物品行: "台式计算机  50台"
+            r'(?:^|\n)\s*([^\n]{2,50})\s+(\d+(?:\.\d+)?)\s*(台|套|个|件|批|组|辆|台|套)\s*(?:\n|$)',
         ]
 
         for pattern in item_patterns:
@@ -123,11 +128,39 @@ class PDFContentAnalyzer:
                 except Exception as e:
                     self.logger.debug(f"Failed to parse item: {e}")
 
+        # Filter out invalid items (dates, contract terms, etc.)
+        items = self._filter_invalid_items(items)
+
         # 如果没有找到，尝试使用段落分析
         if not items:
             items = self._extract_items_from_paragraphs(text)
 
         return items
+
+    def _filter_invalid_items(self, items: List[Dict]) -> List[Dict]:
+        """Filter out items that are not actual procurement items"""
+        valid_items = []
+
+        invalid_keywords = [
+            '中标', '合同', '期限', '交付', '付款', '验收', '质保',
+            '自', '之日起', '签订', '条件', '原则', '应当', '收到',
+            '满足', '发票', '甲方', '乙方',
+        ]
+
+        for item in items:
+            name = item.get('name', '')
+
+            # Skip if name contains invalid keywords
+            if any(kw in name for kw in invalid_keywords):
+                continue
+
+            # Skip if name looks like a date/term pattern
+            if re.search(r'\d+日|自.*起|期限|之日起', name):
+                continue
+
+            valid_items.append(item)
+
+        return valid_items
 
     def _parse_item_match(self, match: re.Match, full_text: str) -> Optional[Dict]:
         """解析匹配到的物品信息"""

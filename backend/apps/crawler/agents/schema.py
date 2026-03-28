@@ -48,6 +48,26 @@ class ExtractionStrategy:
     # API配置（如果是API类型）
     api_config: Optional[Dict] = None
 
+    # 源名称
+    source_name: str = ""
+
+    # 分页配置
+    pagination: Dict[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'ExtractionStrategy':
+        """从字典创建 ExtractionStrategy"""
+        return cls(
+            site_type=data.get('site_type', 'static'),
+            list_strategy=data.get('list_strategy', {}),
+            detail_strategy=data.get('detail_strategy', {}),
+            anti_detection=data.get('anti_detection', {'delay_seconds': 1.5, 'headers': {}}),
+            max_pages=data.get('max_pages', 5),
+            api_config=data.get('api_config'),
+            source_name=data.get('source_name', ''),
+            pagination=data.get('pagination', {}),
+        )
+
 
 @dataclass
 class DetailResult:
