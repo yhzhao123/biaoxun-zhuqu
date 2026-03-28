@@ -101,6 +101,54 @@ class ValidationResult:
 
 
 @dataclass
+class TenderItem:
+    """
+    招标标的/采购物品信息
+    """
+    name: str = ''  # 物品名称
+    specification: str = ''  # 规格型号
+    quantity: Optional[float] = None  # 数量
+    unit: str = ''  # 单位（台、套、个等）
+    budget_unit_price: Optional[Decimal] = None  # 预算单价
+    budget_total_price: Optional[Decimal] = None  # 预算总价
+    category: str = ''  # 物品类别/品目
+    technical_requirements: str = ''  # 技术要求/参数
+    delivery_requirements: str = ''  # 交付要求
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'name': self.name,
+            'specification': self.specification,
+            'quantity': self.quantity,
+            'unit': self.unit,
+            'budget_unit_price': self.budget_unit_price,
+            'budget_total_price': self.budget_total_price,
+            'category': self.category,
+            'technical_requirements': self.technical_requirements,
+            'delivery_requirements': self.delivery_requirements,
+        }
+
+
+@dataclass
+class TechnicalParameter:
+    """
+    技术参数
+    """
+    name: str = ''  # 参数名称
+    value: str = ''  # 参数值/要求
+    category: str = ''  # 参数类别（性能指标、功能要求、接口要求等）
+    is_mandatory: bool = True  # 是否必须满足
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'name': self.name,
+            'value': self.value,
+            'category': self.category,
+            'is_mandatory': self.is_mandatory,
+        }
+
+
+@dataclass
 class TenderNoticeSchema:
     """
     招标信息结构化 Schema
@@ -128,6 +176,19 @@ class TenderNoticeSchema:
     extraction_method: str = 'unknown'
     extraction_confidence: float = 0.0
 
+    # 标的/采购物品列表
+    items: List[TenderItem] = field(default_factory=list)
+
+    # 技术参数列表
+    technical_parameters: List[TechnicalParameter] = field(default_factory=list)
+
+    # 其他重要信息
+    qualification_requirements: str = ''  # 投标人资格要求
+    delivery_period: str = ''  # 交付期限
+    warranty_period: str = ''  # 质保期
+    payment_terms: str = ''  # 付款方式
+    evaluation_method: str = ''  # 评标方法
+
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典"""
         return {
@@ -150,15 +211,35 @@ class TenderNoticeSchema:
             'source_site': self.source_site,
             'extraction_method': self.extraction_method,
             'extraction_confidence': self.extraction_confidence,
+            'items': [item.to_dict() for item in self.items],
+            'technical_parameters': [param.to_dict() for param in self.technical_parameters],
+            'qualification_requirements': self.qualification_requirements,
+            'delivery_period': self.delivery_period,
+            'warranty_period': self.warranty_period,
+            'payment_terms': self.payment_terms,
+            'evaluation_method': self.evaluation_method,
         }
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'TenderNoticeSchema':
         """从字典创建"""
-        return cls(**{
-            k: v for k, v in data.items()
-            if k in cls.__dataclass_fields__
-        })
+        # 处理标的列表
+        items_data = data.get('items', [])
+        items = [TenderItem(**item) for item in items_data]
+
+        # 处理技术参数列表
+        params_data = data.get('technical_parameters', [])
+        technical_parameters = [TechnicalParameter(**param) for param in params_data]
+
+        # 过滤掉不在类定义中的字段
+        valid_fields = {k: v for k, v in data.items()
+                        if k in cls.__dataclass_fields__ and k not in ('items', 'technical_parameters')}
+
+        return cls(
+            **valid_fields,
+            items=items,
+            technical_parameters=technical_parameters
+        )
 
     def to_model_fields(self) -> Dict[str, Any]:
         """

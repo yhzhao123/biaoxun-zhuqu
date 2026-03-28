@@ -336,30 +336,73 @@ class TenderOrchestratorV2:
         url: str,
         main_pdf_url: Optional[str] = None
     ) -> TenderNoticeSchema:
-        """从PDF正文内容中提取字段"""
+        """从PDF正文内容中提取字段（增强版）"""
         try:
-            # 尝试使用PDF处理器提取
-            from apps.crawler.agents.agents.pdf_processor import PDFProcessorAgent
+            # 使用新的PDF分析器进行深度分析
+            from apps.crawler.agents.services.pdf_analyzer import PDFContentAnalyzer
+            from apps.crawler.agents.schema import TenderItem, TechnicalParameter
 
-            pdf_processor = PDFProcessorAgent()
+            analyzer = PDFContentAnalyzer()
+            analysis_result = analyzer.analyze(pdf_content)
 
-            # 使用PDF处理器的提取方法
-            extracted = await self._extract_from_pdf_text(pdf_content, list_item)
+            # 基础字段提取
+            basic_extracted = await self._extract_from_pdf_text(pdf_content, list_item)
+
+            # 转换标的列表
+            items = [
+                TenderItem(
+                    name=item_data.get('name', ''),
+                    specification=item_data.get('specification', ''),
+                    quantity=item_data.get('quantity'),
+                    unit=item_data.get('unit', ''),
+                    budget_unit_price=item_data.get('budget_unit_price'),
+                    budget_total_price=item_data.get('budget_total_price'),
+                    category=item_data.get('category', ''),
+                    technical_requirements=item_data.get('technical_requirements', ''),
+                    delivery_requirements=item_data.get('delivery_requirements', ''),
+                )
+                for item_data in analysis_result.get('items', [])
+            ]
+
+            # 转换技术参数列表
+            technical_parameters = [
+                TechnicalParameter(
+                    name=param_data.get('name', ''),
+                    value=param_data.get('value', ''),
+                    category=param_data.get('category', ''),
+                    is_mandatory=param_data.get('is_mandatory', True),
+                )
+                for param_data in analysis_result.get('technical_parameters', [])
+            ]
 
             # 创建结果
             result = TenderNoticeSchema(
-                title=list_item.get('title') or extracted.get('title'),
-                tenderer=extracted.get('tenderer'),
-                winner=extracted.get('winner'),
-                contact_person=extracted.get('contact_person'),
-                contact_phone=extracted.get('contact_phone'),
-                project_number=extracted.get('project_number'),
+                title=list_item.get('title') or basic_extracted.get('title'),
+                tenderer=basic_extracted.get('tenderer'),
+                winner=basic_extracted.get('winner'),
+                contact_person=basic_extracted.get('contact_person'),
+                contact_phone=basic_extracted.get('contact_phone'),
+                project_number=basic_extracted.get('project_number'),
+                budget_amount=basic_extracted.get('budget_amount'),
                 description=pdf_content[:2000] if len(pdf_content) > 2000 else pdf_content,
                 source_url=url,
                 source_site=list_item.get('source_site', ''),
-                extraction_method='pdf_main_content',
-                extraction_confidence=0.85 if extracted.get('tenderer') else 0.6
+                extraction_method='pdf_detailed_analysis',
+                extraction_confidence=0.9 if items or technical_parameters else 0.75,
+                items=items,
+                technical_parameters=technical_parameters,
+                qualification_requirements=analysis_result.get('qualification_requirements', ''),
+                delivery_period=analysis_result.get('delivery_period', ''),
+                warranty_period=analysis_result.get('warranty_period', ''),
+                payment_terms=analysis_result.get('payment_terms', ''),
+                evaluation_method=analysis_result.get('evaluation_method', ''),
             )
+
+            # 记录统计
+            if items:
+                logger.info(f"Extracted {len(items)} procurement items from PDF")
+            if technical_parameters:
+                logger.info(f"Extracted {len(technical_parameters)} technical parameters from PDF")
 
             self.stats['llm_calls_made'] += 1
             return result
