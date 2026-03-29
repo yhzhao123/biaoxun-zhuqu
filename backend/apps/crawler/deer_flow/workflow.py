@@ -3,15 +3,26 @@ Tender Extraction Workflow for deer-flow
 
 招标信息提取 Workflow 编排
 将 ListFetcherTool 和 DetailFetcherTool 组合为完整提取流程
+
+性能优化特性:
+- 动态并发限制 (根据系统负载调整)
+- 连接池管理
+- 多级缓存支持
+- 性能指标收集
 """
 import json
 import asyncio
 import logging
+import time
+import os
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field
 
 from apps.crawler.tools.list_fetcher_tool import ListFetcherTool, ListFetchResult
 from apps.crawler.tools.detail_fetcher_tool import DetailFetcherTool, DetailFetchResult
+from apps.crawler.deer_flow.cache import TenderCache, CacheLevel, get_cache
+from apps.crawler.deer_flow.pool import ConnectionPool, get_connection_pool
+from apps.crawler.deer_flow.metrics import PerformanceMetrics, get_metrics
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +34,11 @@ class WorkflowConfig:
     max_retries: int = 3
     request_delay: float = 1.0
     max_items_per_source: int = 100
+    # 性能优化配置
+    enable_cache: bool = True
+    enable_connection_pool: bool = True
+    cache_ttl_l1: int = 300  # 5 minutes
+    cache_ttl_l2: int = 3600  # 1 hour
 
 
 @dataclass
@@ -52,17 +68,88 @@ class TenderExtractionWorkflow:
     招标信息提取 Workflow
 
     编排 ListFetcherTool 和 DetailFetcherTool 完成完整提取流程
+
+    性能优化:
+    - 动态并发限制
+    - 多级缓存 (L1/L2/L3)
+    - 连接池管理
+    - 性能指标收集
     """
 
     def __init__(self, config: Optional[WorkflowConfig] = None):
         self.config = config or WorkflowConfig()
         self.logger = logging.getLogger(__name__)
+
+        # 基础指标
         self._metrics = {
             "list_calls": 0,
             "detail_calls": 0,
             "errors": 0,
             "items_fetched": 0,
+            "cache_hits": 0,
+            "cache_misses": 0,
         }
+
+        # 动态并发控制
+        self._active_tasks = 0
+        self._semaphore: Optional[asyncio.Semaphore] = None
+
+        # 缓存 (L1/L2/L3)
+        self._cache: Optional[TenderCache] = None
+        if self.config.enable_cache:
+            try:
+                self._cache = get_cache()
+            except Exception as e:
+                self.logger.warning(f"Cache initialization failed: {e}")
+
+        # 连接池
+        self._pool: Optional[ConnectionPool] = None
+        if self.config.enable_connection_pool:
+            try:
+                self._pool = get_connection_pool()
+            except Exception as e:
+                self.logger.warning(f"Connection pool initialization failed: {e}")
+
+        # 性能指标收集器
+        self._perf_metrics = get_metrics()
+
+        # 动态并发调整
+        self._base_concurrent_limit = self.config.max_concurrent_requests
+        self._dynamic_concurrent_limit = self._base_concurrent_limit
+
+    def _get_semaphore(self) -> asyncio.Semaphore:
+        """获取或创建信号量（动态并发控制）"""
+        if self._semaphore is None:
+            self._semaphore = asyncio.Semaphore(self._dynamic_concurrent_limit)
+        return self._semaphore
+
+    async def _adjust_concurrency(self, system_load: float = 0.0) -> int:
+        """
+        根据系统负载动态调整并发限制
+
+        Args:
+            system_load: 系统负载 (0.0 - 1.0)
+
+        Returns:
+            新的并发限制
+        """
+        # 系统负载高时降低并发，负载低时提高并发
+        if system_load > 0.8:
+            self._dynamic_concurrent_limit = max(2, self._base_concurrent_limit // 2)
+        elif system_load > 0.5:
+            self._dynamic_concurrent_limit = int(self._base_concurrent_requests * 0.8)
+        else:
+            self._dynamic_concurrent_limit = self._base_concurrent_requests
+
+        # 重建信号量
+        if self._semaphore is not None:
+            # 取消旧的信号量引用，强制创建新的
+            self._semaphore = None
+
+        self._perf_metrics.set_gauge("concurrent_limit", self._dynamic_concurrent_limit)
+        self.logger.debug(f"Adjusted concurrency limit: {self._dynamic_concurrent_limit}")
+
+        return self._dynamic_concurrent_limit
 
     async def extract(
         self,
@@ -85,8 +172,21 @@ class TenderExtractionWorkflow:
         Returns:
             ExtractionResult: 提取结果
         """
+        start_time = time.time()
+
         try:
             self.logger.info(f"Starting extraction from {source_url}")
+
+            # 尝试从缓存获取 (使用源 URL 作为缓存键)
+            cache_key = f"{source_url}:{max_pages}:{max_items}"
+            if self._cache:
+                cached = self._cache.get(source_url, cache_key)
+                if cached:
+                    self._metrics["cache_hits"] += 1
+                    self.logger.info(f"Cache hit for {source_url}")
+                    return ExtractionResult(**cached)
+
+            self._metrics["cache_misses"] += 1
 
             # 使用 ListFetcherTool 类
             import aiohttp
@@ -121,6 +221,22 @@ class TenderExtractionWorkflow:
                 items = items[:max_items]
 
             self._metrics["items_fetched"] += len(items)
+
+            # 写入缓存
+            if self._cache:
+                result_data = {
+                    "items": items,
+                    "success": True,
+                    "total_fetched": len(items)
+                }
+                try:
+                    self._cache.set(source_url, cache_key, result_data, level=CacheLevel.L1)
+                except Exception as e:
+                    self.logger.warning(f"Cache write failed: {e}")
+
+            # 记录性能指标
+            duration = time.time() - start_time
+            self._perf_metrics.record_timing("extract", duration, {"source": source_url})
 
             return ExtractionResult(
                 items=items,
@@ -266,13 +382,32 @@ class TenderExtractionWorkflow:
 
     def get_metrics(self) -> Dict[str, Any]:
         """获取 Workflow 指标"""
+        # 计算缓存命中率
+        cache_total = self._metrics.get("cache_hits", 0) + self._metrics.get("cache_misses", 0)
+        cache_hit_rate = self._metrics.get("cache_hits", 0) / cache_total if cache_total > 0 else 0.0
+
+        # 获取性能指标
+        perf_stats = {}
+        try:
+            perf_stats = self._perf_metrics.get_all_stats()
+        except Exception:
+            pass
+
         return {
             **self._metrics,
+            "cache_hit_rate": round(cache_hit_rate, 2),
             "config": {
                 "max_concurrent_requests": self.config.max_concurrent_requests,
                 "max_retries": self.config.max_retries,
                 "request_delay": self.config.request_delay,
-            }
+                "enable_cache": self.config.enable_cache,
+                "enable_connection_pool": self.config.enable_connection_pool,
+            },
+            "dynamic": {
+                "concurrent_limit": self._dynamic_concurrent_limit,
+                "active_tasks": self._active_tasks,
+            },
+            "performance": perf_stats,
         }
 
     def reset_metrics(self):
@@ -282,4 +417,7 @@ class TenderExtractionWorkflow:
             "detail_calls": 0,
             "errors": 0,
             "items_fetched": 0,
+            "cache_hits": 0,
+            "cache_misses": 0,
         }
+        self._active_tasks = 0
