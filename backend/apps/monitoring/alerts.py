@@ -79,6 +79,10 @@ class AlertRule:
         if not self.enabled:
             return False
 
+        # Handle MutexValue from multiprocessing/metrics
+        if hasattr(value, 'value'):
+            value = value.value
+
         # 根据条件类型评估
         if self.condition == AlertCondition.ERROR_RATE:
             # 错误率高于阈值触发
