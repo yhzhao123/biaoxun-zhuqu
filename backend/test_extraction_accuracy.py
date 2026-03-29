@@ -8,9 +8,14 @@ Tests:
 
 Run: python -m pytest backend/test_extraction_accuracy.py -v
 """
+import logging
 import os
-import sys
 import re
+import sys
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Setup Django
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
@@ -43,12 +48,12 @@ class TestTendererExtraction:
         # Current regex (fails)
         old_pattern = r'(招标人|采购人|采购单位)[：:]\s*([^\n]+)'
         old_match = re.search(old_pattern, text)
-        print(f"Old pattern result: {old_match.group(2).strip() if old_match else 'No match'}")
+        logger.info("Old pattern result: %s", old_match.group(2).strip() if old_match else 'No match')
 
         # Fixed regex (should work)
         new_pattern = r'(?:采\s*购\s*人|招\s*标\s*人|采\s*购\s*单\s*位)[：:]\s*([^\n]+)'
         new_match = re.search(new_pattern, text)
-        print(f"New pattern result: {new_match.group(1).strip() if new_match else 'No match'}")
+        logger.info("New pattern result: %s", new_match.group(1).strip() if new_match else 'No match')
 
         # Verify the old pattern fails and new pattern works
         assert old_match is None or old_match.group(2).strip() != '吉林财经大学', \
@@ -69,11 +74,11 @@ class TestContentTruncation:
 
         # Current truncation (fails)
         old_description = long_content[:2000] if len(long_content) > 2000 else long_content
-        print(f"Old truncation length: {len(old_description)}")
+        logger.info("Old truncation length: %d", len(old_description))
 
         # Fixed truncation (should be longer)
         new_description = long_content[:5000] if len(long_content) > 5000 else long_content
-        print(f"New truncation length: {len(new_description)}")
+        logger.info("New truncation length: %d", len(new_description))
 
         # Verify old truncation is smaller than new
         assert len(old_description) < len(new_description), \
@@ -108,8 +113,8 @@ class TestItemExtraction:
         result = self.analyzer.analyze(text)
         items = result.get('items', [])
 
-        print(f"Extracted items: {items}")
-        print(f"Item count: {len(items)}")
+        logger.info("Extracted items: %s", items)
+        logger.info("Item count: %d", len(items))
 
         # Should extract at least the table items
         assert len(items) > 0, "Should extract items from table format"
@@ -132,7 +137,7 @@ class TestItemExtraction:
         result = self.analyzer.analyze(text)
         qualification = result.get('qualification_requirements', '')
 
-        print(f"Extracted qualification: {qualification[:200]}")
+        logger.info("Extracted qualification: %s...", qualification[:200])
 
         # Should extract qualification text, not dots
         assert qualification, "Should extract qualification requirements"
@@ -160,7 +165,7 @@ class TestIntegration:
 
             if match:
                 extracted = match.group(1).strip()
-                print(f"Input: '{text}' -> Extracted: '{extracted}'")
+                logger.info("Input: '%s' -> Extracted: '%s'", text, extracted)
                 assert extracted == expected, f"Expected '{expected}' but got '{extracted}'"
             else:
                 pytest.fail(f"Failed to match: {text}")

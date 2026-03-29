@@ -30,7 +30,7 @@ export const TenderDetail: React.FC = () => {
         setTender(data);
       } catch (err) {
         setError('加载招标详情失败');
-        console.error(err);
+        // Error is already displayed to user via setError
       } finally {
         setLoading(false);
       }

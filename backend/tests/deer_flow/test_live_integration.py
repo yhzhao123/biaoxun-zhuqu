@@ -4,10 +4,14 @@ TDD Test: deer-flow Live Integration Tests
 测试 deer-flow Gateway 和 Tools 的实际集成。
 需要 deer-flow Gateway 运行在 port 8001。
 """
+import logging
 import os
+
 import pytest
 import requests
 
+# Setup logging
+logger = logging.getLogger(__name__)
 
 # ============================================================================
 # Test Configuration
@@ -29,7 +33,7 @@ def gateway_available() -> bool:
     try:
         response = requests.get(f"{GATEWAY_URL}/health", timeout=5)
         return response.status_code == 200
-    except Exception:
+    except requests.RequestException:
         return False
 
 
@@ -51,7 +55,7 @@ class TestGatewayAPI:
         data = response.json()
         assert data["status"] == "healthy"
         assert "service" in data
-        print(f"Gateway health check: {data}")
+        logger.info("Gateway health check: %s", data)
 
     @pytest.mark.integration
     def test_gateway_mcp_config(self, gateway_available):
@@ -64,7 +68,7 @@ class TestGatewayAPI:
         data = response.json()
         assert "mcp_servers" in data
         # MCP servers should include filesystem, github, postgres (based on extensions_config.json)
-        print(f"MCP servers: {list(data['mcp_servers'].keys())}")
+        logger.info("MCP servers: %s", list(data['mcp_servers'].keys()))
 
     @pytest.mark.integration
     def test_gateway_models_endpoint(self, gateway_available):
@@ -77,7 +81,7 @@ class TestGatewayAPI:
         data = response.json()
         assert "models" in data
         assert len(data["models"]) > 0
-        print(f"Available models: {[m['name'] for m in data['models']]}")
+        logger.info("Available models: %s", [m['name'] for m in data['models']])
 
 
 # ============================================================================
@@ -100,7 +104,7 @@ class TestToolCalls:
         assert len(data["skills"]) > 0
 
         skill_names = [s["name"] for s in data.get("skills", [])]
-        print(f"Registered skills: {skill_names}")
+        logger.info(f"Registered skills: {skill_names}")
 
 
 # ============================================================================
@@ -144,7 +148,7 @@ class TestDirectToolInvocation:
         assert "use" in fetch_tender_detail_tool
         assert fetch_tender_detail_tool["use"].endswith("fetch_tender_detail")
 
-        print("Tool definitions verified in config.yaml")
+        logger.info("Tool definitions verified in config.yaml")
 
     @pytest.mark.integration
     def test_config_tools_group(self):
@@ -157,7 +161,7 @@ class TestDirectToolInvocation:
 
         tool_groups = config.get("tool_groups", [])
         group_names = [g.get("name") for g in tool_groups]
-        print(f"Tool groups: {group_names}")
+        logger.info(f"Tool groups: {group_names}")
 
         # Verify web group exists (tender tools use 'web' group)
         assert "web" in group_names, "web group not configured"
@@ -179,29 +183,29 @@ class TestEndToEnd:
         # 1. Verify Gateway is running
         response = requests.get(f"{GATEWAY_URL}/health")
         assert response.status_code == 200
-        print("Step 1: Gateway health check - PASS")
+        logger.info("Step 1: Gateway health check - PASS")
 
         # 2. Verify MCP config returns data
         response = requests.get(f"{GATEWAY_URL}/api/mcp/config")
         assert response.status_code == 200
         mcp_config = response.json()
-        print(f"Step 2: MCP config - PASS, servers: {list(mcp_config['mcp_servers'].keys())}")
+        logger.info(f"Step 2: MCP config - PASS, servers: {list(mcp_config['mcp_servers'].keys())}")
 
         # 3. Verify skills are returned
         response = requests.get(f"{GATEWAY_URL}/api/skills")
         assert response.status_code == 200
         skills_data = response.json()
         assert len(skills_data.get("skills", [])) > 0
-        print(f"Step 3: Skills - PASS, {len(skills_data['skills'])} skills loaded")
+        logger.info(f"Step 3: Skills - PASS, {len(skills_data['skills'])} skills loaded")
 
         # 4. Verify models are available
         response = requests.get(f"{GATEWAY_URL}/api/models")
         assert response.status_code == 200
         models_data = response.json()
         assert len(models_data.get("models", [])) > 0
-        print(f"Step 4: Models - PASS, {len(models_data['models'])} models available")
+        logger.info(f"Step 4: Models - PASS, {len(models_data['models'])} models available")
 
-        print("All end-to-end steps completed successfully!")
+        logger.info("All end-to-end steps completed successfully!")
 
     @pytest.mark.integration
     def test_memory_config(self, gateway_available):
@@ -214,7 +218,7 @@ class TestEndToEnd:
         assert response.status_code in [200, 404]
         if response.status_code == 200:
             data = response.json()
-            print(f"Memory config: {data}")
+            logger.info(f"Memory config: {data}")
 
 
 # ============================================================================
@@ -246,8 +250,8 @@ class TestTenderToolsConfig:
         assert tender_list_tool.get("group") == "web", "fetch_tender_list should be in 'web' group"
         assert tender_detail_tool.get("group") == "web", "fetch_tender_detail should be in 'web' group"
 
-        print(f"fetch_tender_list: {tender_list_tool.get('use')}")
-        print(f"fetch_tender_detail: {tender_detail_tool.get('use')}")
+        logger.info(f"fetch_tender_list: {tender_list_tool.get('use')}")
+        logger.info(f"fetch_tender_detail: {tender_detail_tool.get('use')}")
 
     @pytest.mark.integration
     def test_extensions_config_skill_enabled(self):
@@ -264,7 +268,7 @@ class TestTenderToolsConfig:
         assert "tender-extraction" in skills, "tender-extraction not in extensions_config.json"
         assert skills["tender-extraction"].get("enabled") is True, "tender-extraction not enabled"
 
-        print("tender-extraction skill is enabled in extensions_config.json")
+        logger.info("tender-extraction skill is enabled in extensions_config.json")
 
     @pytest.mark.integration
     def test_tender_skill_directory_exists(self):
@@ -288,4 +292,4 @@ class TestTenderToolsConfig:
         skill_md = os.path.join(found_path, "SKILL.md")
         assert os.path.exists(skill_md), f"SKILL.md not found in {found_path}"
 
-        print(f"tender-extraction skill found at: {found_path}")
+        logger.info(f"tender-extraction skill found at: {found_path}")
