@@ -215,3 +215,117 @@ def scheduled_daily_crawl():
         'tasks_created': len(created_tasks),
         'task_ids': created_tasks
     }
+
+
+# =============================================================================
+# Deer-Flow 数据提取任务
+# =============================================================================
+
+@shared_task(
+    bind=True,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_backoff_max=300,
+    max_retries=3,
+)
+def run_deer_flow_extraction(self, task_id: str):
+    """
+    执行 deer-flow 数据提取任务
+
+    Args:
+        task_id: ExtractionTask ID
+
+    Returns:
+        dict: 任务执行结果
+    """
+    from apps.crawler.services.deer_flow_extraction import get_extraction_service
+
+    try:
+        logger.info(f"Starting deer-flow extraction task: {task_id}")
+
+        service = get_extraction_service()
+        task = service.get_task(task_id)
+
+        if not task:
+            logger.error(f"Task {task_id} not found")
+            return {
+                "status": "failed",
+                "task_id": task_id,
+                "error": "Task not found"
+            }
+
+        # 执行提取任务
+        result = service.run_task(task_id)
+
+        logger.info(f"Extraction task {task_id} completed: success={result.get('success')}")
+
+        return {
+            "status": task.status,
+            "task_id": task_id,
+            "success": result.get("success", False),
+            "total_fetched": result.get("total_fetched", 0),
+            "error": result.get("error_message"),
+        }
+
+    except Exception as exc:
+        logger.error(f"Extraction task {task_id} failed: {exc}")
+        return {
+            "status": "failed",
+            "task_id": task_id,
+            "error": str(exc)
+        }
+
+
+@shared_task
+def run_batch_extraction(sources: list):
+    """
+    批量执行提取任务
+
+    Args:
+        sources: 源配置列表，每项包含 url 和 type
+
+    Returns:
+        dict: 批量执行结果
+    """
+    from apps.crawler.services.deer_flow_extraction import get_extraction_service
+    from apps.crawler.deer_flow.workflow import TenderExtractionWorkflow
+    import asyncio
+
+    results = []
+    workflow = TenderExtractionWorkflow()
+
+    async def process_source(source: dict):
+        url = source.get("url")
+        site_type = source.get("type", "api")
+        max_items = source.get("max_items", 10)
+
+        try:
+            result = await workflow.extract(
+                source_url=url,
+                site_type=site_type,
+                max_items=max_items
+            )
+            return {"url": url, "success": True, "result": result.to_dict()}
+        except Exception as e:
+            logger.error(f"Failed to extract from {url}: {e}")
+            return {"url": url, "success": False, "error": str(e)}
+
+    async def run_batch():
+        tasks = [process_source(s) for s in sources]
+        return await asyncio.gather(*tasks, return_exceptions=True)
+
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        results = loop.run_until_complete(run_batch())
+        loop.close()
+    except Exception as e:
+        logger.error(f"Batch extraction failed: {e}")
+        return {"status": "failed", "error": str(e)}
+
+    return {
+        "status": "completed",
+        "total": len(sources),
+        "successful": sum(1 for r in results if isinstance(r, dict) and r.get("success")),
+        "results": results
+    }
