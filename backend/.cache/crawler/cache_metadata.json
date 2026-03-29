@@ -1,1 +1,20 @@
-{}
+{
+  "2597ab028d6ee6a49496cccc9b87d5445b3dbf62d8d70f5149f3306f8f16b4e8": {
+    "timestamp": 1774706554.4835305,
+    "ttl": 7200,
+    "source_id": "test_source",
+    "size": 179
+  },
+  "9f4b4d15636eee46953ca11b63e1dbe6b474f23b4c7d1563d9187a5570e9e8fd": {
+    "timestamp": 1774706554.5353065,
+    "ttl": 7200,
+    "source_id": null,
+    "size": 304
+  },
+  "92488e1e3eeecdf99f3ed2ce59233efb4b4fb612d5655c0ce9ea52b5a502e655": {
+    "timestamp": 1774706555.6734993,
+    "ttl": 7200,
+    "source_id": null,
+    "size": 133
+  }
+}
