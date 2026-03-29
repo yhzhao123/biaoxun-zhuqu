@@ -2,6 +2,28 @@
  * Tender types - Phase 4 Task 018
  */
 
+// Phase 10: PDF Content Extraction
+export interface TenderItem {
+  id: string;
+  name: string;
+  specification?: string;
+  quantity?: number;
+  unit?: string;
+  budget_unit_price?: number;
+  budget_total_price?: number;
+  category?: string;
+  technical_requirements?: string;
+}
+
+export interface TechnicalParameter {
+  id: string;
+  name: string;
+  value: string;
+  category?: string;
+  is_mandatory: boolean;
+}
+
+// Updated Tender interface with PDF extraction fields
 export interface Tender {
   id: string;
   notice_id: string;
@@ -19,6 +41,18 @@ export interface Tender {
   status: 'pending' | 'active' | 'closed' | 'expired';
   created_at: string;
   updated_at: string;
+  // Phase 10: PDF extraction fields
+  items?: TenderItem[];
+  technical_parameters?: TechnicalParameter[];
+  main_pdf_content?: string;
+  main_pdf_url?: string;
+  qualification_requirements?: string;
+  delivery_period?: string;
+  warranty_period?: string;
+  payment_terms?: string;
+  evaluation_method?: string;
+  extraction_method?: string;
+  extraction_confidence?: number;
 }
 
 export interface TenderListResponse {
