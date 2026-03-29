@@ -66,7 +66,7 @@ class TestCacheStrategy:
         # 如果 Redis 不可用，记录警告但不失败
         if cache._redis_client is None:
             # Redis 未连接，跳过功能测试
-            self.skipTest("Redis not available")
+            pytest.skip("Redis not available")
             return
 
         source = "http://test.com"

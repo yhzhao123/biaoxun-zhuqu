@@ -189,7 +189,8 @@ def _wrap_function(func: Callable, metric_name: str, metadata_fn: Optional[Calla
                         pass
 
                 # 记录计时（通过全局指标收集器）
-                _global_metrics.record_timing(metric_name, duration, meta)
+                if _global_metrics is not None:
+                    _global_metrics.record_timing(metric_name, duration, meta)
     else:
         @functools.wraps(func)
         def sync_wrapper(*args, **kwargs):

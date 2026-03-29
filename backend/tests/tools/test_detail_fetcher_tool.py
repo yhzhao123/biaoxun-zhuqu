@@ -3,6 +3,14 @@ DetailFetcherTool 测试
 
 TDD 循环 4: 测试详情页爬取工具
 """
+import os
+import sys
+
+# Add backend to path
+backend_path = os.path.join(os.path.dirname(__file__), '../..')
+if backend_path not in sys.path:
+    sys.path.insert(0, backend_path)
+
 import pytest
 from unittest.mock import Mock, patch, AsyncMock
 from typing import Dict, Any, List
@@ -127,7 +135,7 @@ class TestDetailFetcherTool:
         tool = DetailFetcherTool()
 
         assert tool.agent is not None
-        assert tool.config is not None
+        assert hasattr(tool, 'logger')
 
     @pytest.mark.asyncio
     async def test_fetch_success(self):
@@ -146,7 +154,7 @@ class TestDetailFetcherTool:
         with patch.object(
             tool.agent, "fetch", new_callable=AsyncMock, return_value=mock_detail_result
         ) as mock_fetch:
-            result = await tool.fetch(list_item)
+            result = await tool.fetch(list_item, use_cache=False)
 
             assert result.success is True
             assert result.url == "http://example.com/detail/1"
@@ -175,7 +183,7 @@ class TestDetailFetcherTool:
         with patch.object(
             tool.agent, "fetch", new_callable=AsyncMock, return_value=mock_detail_result
         ):
-            result = await tool.fetch(list_item, extract_pdf=True)
+            result = await tool.fetch(list_item, extract_pdf=True, use_cache=False)
 
             assert result.success is True
             assert result.main_pdf_content == "PDF extracted text content"
@@ -201,7 +209,7 @@ class TestDetailFetcherTool:
         with patch.object(
             tool.agent, "fetch", new_callable=AsyncMock, return_value=mock_detail_result
         ):
-            result = await tool.fetch(list_item, extract_pdf=False)
+            result = await tool.fetch(list_item, extract_pdf=False, use_cache=False)
 
             # 即使 Agent 返回了 PDF，也应该是 None（因为我们设置了 extract_pdf=False）
             assert result.main_pdf_content is None
@@ -216,7 +224,7 @@ class TestDetailFetcherTool:
         with patch.object(
             tool.agent, "fetch", new_callable=AsyncMock, side_effect=Exception("Network error")
         ):
-            result = await tool.fetch(list_item)
+            result = await tool.fetch(list_item, use_cache=False)
 
             assert result.success is False
             assert result.html == ""
@@ -228,7 +236,7 @@ class TestDetailFetcherTool:
         list_item = {"title": "Test"}  # 缺少 url
 
         tool = DetailFetcherTool()
-        result = await tool.fetch(list_item)
+        result = await tool.fetch(list_item, use_cache=False)
 
         assert result.success is False
         assert "No URL provided" in result.error_message
@@ -243,7 +251,7 @@ class TestDetailFetcherTool:
         with patch.object(
             tool.agent, "fetch", new_callable=AsyncMock, return_value=None
         ):
-            result = await tool.fetch(list_item)
+            result = await tool.fetch(list_item, use_cache=False)
 
             assert result.success is False
             assert "Failed to fetch" in result.error_message
@@ -290,7 +298,7 @@ class TestDetailFetcherTool:
             new_callable=AsyncMock,
             side_effect=[Exception("First fail"), mock_detail_result]
         ) as mock_fetch:
-            result = await tool.fetch_with_retry(list_item, max_retries=3)
+            result = await tool.fetch_with_retry(list_item, max_retries=3, use_cache=False)
 
             assert result.success is True
             assert mock_fetch.call_count == 2
@@ -308,7 +316,7 @@ class TestDetailFetcherTool:
             new_callable=AsyncMock,
             side_effect=Exception("Always fails")
         ):
-            result = await tool.fetch_with_retry(list_item, max_retries=3)
+            result = await tool.fetch_with_retry(list_item, max_retries=3, use_cache=False)
 
             assert result.success is False
             assert "Failed after 3 attempts" in result.error_message

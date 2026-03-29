@@ -2,8 +2,10 @@
 DetailFetcherTool - 详情页爬取工具
 
 将 DetailFetcherAgent 封装为 Deer-Flow Tool
+支持多级缓存
 """
 import json
+import hashlib
 from typing import Dict, Any, Optional
 from dataclasses import dataclass, field
 import logging
@@ -11,8 +13,33 @@ import logging
 from langchain.tools import tool
 
 from apps.crawler.agents.agents.fetcher_agents import DetailFetcherAgent
+from apps.crawler.tools.error_handling import (
+    RetryConfig,
+    CircuitBreaker,
+    with_retry,
+    with_circuit_breaker,
+    FallbackStrategy,
+    RetryableError,
+)
+from apps.crawler.tools.cache import (
+    MultiLevelCache,
+    CacheKeyGenerator,
+    get_default_cache,
+)
 
 logger = logging.getLogger(__name__)
+
+
+# 全局缓存实例
+_cache: Optional[MultiLevelCache] = None
+
+
+def _get_cache() -> MultiLevelCache:
+    """获取缓存实例"""
+    global _cache
+    if _cache is None:
+        _cache = get_default_cache()
+    return _cache
 
 
 @dataclass
@@ -68,16 +95,26 @@ class DetailFetcherTool:
 
     封装 DetailFetcherAgent，提供统一的 Tool 接口
     支持 HTML 页面和 PDF 页面的爬取
+    支持多级缓存
     """
 
-    def __init__(self):
+    def __init__(self, cache: Optional[MultiLevelCache] = None):
         self.agent = DetailFetcherAgent()
         self.logger = logging.getLogger(__name__)
+        self._cache = cache
+
+    @property
+    def cache(self) -> MultiLevelCache:
+        """获取缓存实例"""
+        if self._cache is not None:
+            return self._cache
+        return _get_cache()
 
     async def fetch(
         self,
         list_item: Dict[str, Any],
         extract_pdf: bool = True,
+        use_cache: bool = True,
     ) -> DetailFetchResult:
         """
         爬取详情页
@@ -85,6 +122,7 @@ class DetailFetcherTool:
         Args:
             list_item: 列表项数据，必须包含 'url' 字段
             extract_pdf: 是否提取 PDF 内容
+            use_cache: 是否使用缓存
 
         Returns:
             DetailFetchResult: 详情页爬取结果
@@ -98,6 +136,28 @@ class DetailFetcherTool:
                 success=False,
                 error_message="No URL provided",
             )
+
+        # 生成缓存键
+        tender_id = list_item.get('id', hashlib.md5(url.encode()).hexdigest()[:8])
+        cache_key = CacheKeyGenerator.for_tender_detail(tender_id)
+
+        # 尝试从缓存获取
+        if use_cache:
+            cached_result = await self.cache.get(cache_key)
+            if cached_result is not None:
+                self.logger.info(f"Cache hit for {cache_key}")
+                # 从缓存恢复时，只提取 DetailFetchResult 需要的字段
+                return DetailFetchResult(
+                    url=cached_result.get("url", ""),
+                    html=cached_result.get("html", ""),
+                    success=cached_result.get("success", False),
+                    attachments=cached_result.get("attachments", []),
+                    main_pdf_content=cached_result.get("main_pdf_content"),
+                    main_pdf_url=cached_result.get("main_pdf_url"),
+                    main_pdf_filename=cached_result.get("main_pdf_filename"),
+                    list_data=cached_result.get("list_data", {}),
+                    content_type=cached_result.get("content_type", "html"),
+                )
 
         try:
             self.logger.info(f"Fetching detail page: {url}")
@@ -132,6 +192,10 @@ class DetailFetcherTool:
                 f"has_pdf: {result.main_pdf_content is not None}"
             )
 
+            # 存入缓存
+            if use_cache:
+                await self.cache.set(cache_key, result.to_dict(), ttl=300)
+
             return result
 
         except Exception as e:
@@ -148,6 +212,7 @@ class DetailFetcherTool:
         list_item: Dict[str, Any],
         max_retries: int = 3,
         extract_pdf: bool = True,
+        use_cache: bool = True,
     ) -> DetailFetchResult:
         """
         带重试的详情页爬取
@@ -156,6 +221,7 @@ class DetailFetcherTool:
             list_item: 列表项数据
             max_retries: 最大重试次数
             extract_pdf: 是否提取 PDF 内容
+            use_cache: 是否使用缓存
 
         Returns:
             DetailFetchResult: 详情页爬取结果
@@ -166,7 +232,7 @@ class DetailFetcherTool:
 
         for attempt in range(max_retries):
             try:
-                result = await self.fetch(list_item, extract_pdf)
+                result = await self.fetch(list_item, extract_pdf, use_cache=use_cache)
                 if result.success:
                     return result
                 last_error = result.error_message
@@ -221,6 +287,7 @@ class DetailFetcherTool:
         list_items: list[Dict[str, Any]],
         max_concurrent: int = 5,
         extract_pdf: bool = True,
+        use_cache: bool = False,
     ) -> list[DetailFetchResult]:
         """
         批量爬取详情页
@@ -229,6 +296,7 @@ class DetailFetcherTool:
             list_items: 列表项数据列表
             max_concurrent: 最大并发数
             extract_pdf: 是否提取 PDF 内容
+            use_cache: 是否使用缓存
 
         Returns:
             DetailFetchResult 列表
@@ -240,7 +308,7 @@ class DetailFetcherTool:
 
         async def fetch_with_limit(item: Dict[str, Any]) -> DetailFetchResult:
             async with semaphore:
-                return await self.fetch(item, extract_pdf)
+                return await self.fetch(item, extract_pdf, use_cache)
 
         tasks = [fetch_with_limit(item) for item in list_items]
         results = await asyncio.gather(*tasks, return_exceptions=True)

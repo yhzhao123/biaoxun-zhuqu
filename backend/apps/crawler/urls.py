@@ -19,4 +19,5 @@ urlpatterns = [
     path('deer-flow/status/<str:task_id>', deer_flow_views.get_extraction_status, name='deer-flow-status'),
     path('deer-flow/results/<str:task_id>', deer_flow_views.get_extraction_results, name='deer-flow-results'),
     path('deer-flow/list', deer_flow_views.list_extractions, name='deer-flow-list'),
+    path('deer-flow/health', deer_flow_views.health_check, name='deer-flow-health'),
 ]

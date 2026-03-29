@@ -3,7 +3,13 @@ Test script for TenderOrchestratorV2 (4 Agent Teams)
 """
 import asyncio
 import os
+import sys
 import logging
+
+# Add current directory to path for imports
+script_dir = os.path.dirname(os.path.abspath(__file__))
+if script_dir not in sys.path:
+    sys.path.insert(0, script_dir)
 
 logging.basicConfig(level=logging.INFO)
 

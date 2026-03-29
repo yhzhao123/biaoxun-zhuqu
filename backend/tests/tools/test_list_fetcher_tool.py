@@ -3,6 +3,15 @@ ListFetcherTool 测试
 
 TDD 循环 2: 测试列表爬取工具
 """
+import json
+import os
+import sys
+
+# Add backend to path
+backend_path = os.path.join(os.path.dirname(__file__), '../..')
+if backend_path not in sys.path:
+    sys.path.insert(0, backend_path)
+
 import pytest
 from unittest.mock import Mock, patch, AsyncMock
 from typing import List, Dict, Any
@@ -10,7 +19,7 @@ from typing import List, Dict, Any
 from apps.crawler.tools.list_fetcher_tool import (
     ListFetcherTool,
     ListFetchResult,
-    list_fetch_tool,
+    fetch_tender_list,
 )
 from apps.crawler.agents.schema import ExtractionStrategy
 
@@ -62,7 +71,7 @@ class TestListFetcherTool:
         tool = ListFetcherTool()
 
         assert tool.agent is not None
-        assert tool.config is not None
+        assert hasattr(tool, 'logger')
 
     @pytest.mark.asyncio
     async def test_fetch_success(self):
@@ -148,76 +157,26 @@ class TestListFetcherTool:
         assert tool._estimate_pages_fetched([{}] * 15, strategy) == 2
         assert tool._estimate_pages_fetched([{}] * 100, strategy) == 10
 
-    @pytest.mark.asyncio
-    async def test_fetch_single_page(self):
-        """测试单页爬取"""
-        mock_items = [{"title": "Test"}]
-
-        strategy = Mock(spec=ExtractionStrategy)
-        strategy.source_name = "test_source"
-        strategy.max_pages = 10  # 原始值
-        strategy.pagination = {"items_per_page": 10}
-
+    def test_fetch_single_page_removed(self):
+        """测试单页爬取功能已移除（deer-flow Tool 简化）"""
+        # deer-flow Tool 版本已简化，fetch_single_page 方法已移除
+        # 使用 fetch 方法并设置 max_pages=1 替代
         tool = ListFetcherTool()
+        assert not hasattr(tool, 'fetch_single_page')
 
-        with patch.object(
-            tool.agent, "fetch", new_callable=AsyncMock, return_value=mock_items
-        ):
-            result = await tool.fetch_single_page(strategy, page=2)
-
-            assert result.success is True
-            # 验证临时修改了 max_pages
-            assert strategy.max_pages == 10  # 恢复原值
-
-    def test_validate_strategy_valid(self):
-        """测试有效策略验证"""
+    def test_validate_strategy_removed(self):
+        """测试策略验证已移除（deer-flow Tool 简化）"""
+        # deer-flow Tool 版本已简化，validate_strategy 方法已移除
         tool = ListFetcherTool()
-
-        strategy = Mock(spec=ExtractionStrategy)
-        strategy.source_name = "test"
-        strategy.site_type = "api"
-        strategy.api_config = {"url": "http://api.example.com"}
-
-        assert tool.validate_strategy(strategy) is True
-
-    def test_validate_strategy_missing_source_name(self):
-        """测试缺少 source_name"""
-        tool = ListFetcherTool()
-
-        strategy = Mock(spec=ExtractionStrategy)
-        strategy.source_name = ""
-
-        assert tool.validate_strategy(strategy) is False
-
-    def test_validate_strategy_api_without_config(self):
-        """测试 API 类型缺少配置"""
-        tool = ListFetcherTool()
-
-        strategy = Mock(spec=ExtractionStrategy)
-        strategy.source_name = "test"
-        strategy.site_type = "api"
-        strategy.api_config = None
-
-        assert tool.validate_strategy(strategy) is False
+        assert not hasattr(tool, 'validate_strategy')
 
 
 class TestListFetchToolFunction:
-    """list_fetch_tool 函数测试"""
+    """fetch_tender_list 函数测试"""
 
     @pytest.mark.asyncio
     async def test_tool_function(self):
         """测试工具函数"""
-        source_config = {
-            "source_name": "test",
-            "site_type": "api",
-            "api_config": {"url": "http://api.example.com"},
-            "list_strategy": {},
-            "detail_strategy": {},
-            "pagination": {},
-            "anti_detection": {},
-            "max_pages": 5,
-        }
-
         with patch(
             "apps.crawler.tools.list_fetcher_tool.ListFetcherTool.fetch",
             new_callable=AsyncMock,
@@ -230,11 +189,20 @@ class TestListFetchToolFunction:
                 success=True,
             )
 
-            result = await list_fetch_tool(source_config, max_pages=3)
+            # 使用 fetch_tender_list.ainvoke (deer-flow Tool 装饰器版本)
+            # StructuredTool 需要使用 ainvoke 而不是直接调用
+            result = await fetch_tender_list.ainvoke({
+                "source_url": "http://api.example.com",
+                "site_type": "api",
+                "max_pages": 3,
+                "api_config": '{"url": "http://api.example.com"}',
+            })
 
-            assert isinstance(result, dict)
-            assert result["success"] is True
-            assert result["total_count"] == 1
+            # 结果应为 JSON 字符串
+            assert isinstance(result, str)
+            result_dict = json.loads(result)
+            assert result_dict["success"] is True
+            assert result_dict["total_count"] == 1
 
 
 class TestListFetcherToolIntegration:

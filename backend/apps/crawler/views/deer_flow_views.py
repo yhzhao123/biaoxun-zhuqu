@@ -222,3 +222,34 @@ def list_extractions(request):
             for task in tasks
         ]
     })
+
+
+@api_view(["GET"])
+def health_check(request):
+    """
+    健康检查端点
+
+    GET /api/crawler/deer-flow/health
+
+    检查项:
+    - Gateway 连接
+    - Redis 连接
+    - Database 连接
+    - 最近错误率
+
+    Response:
+    {
+        "status": "healthy|degraded|unhealthy",
+        "checks": {
+            "gateway": {...},
+            "redis": {...},
+            "database": {...},
+            "error_rate": {...}
+        },
+        "timestamp": "2024-01-01T00:00:00Z"
+    }
+    """
+    from apps.monitoring.health import health_check as do_health_check
+
+    result = do_health_check(request)
+    return Response(result)

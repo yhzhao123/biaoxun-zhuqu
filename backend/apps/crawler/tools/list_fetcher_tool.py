@@ -2,6 +2,7 @@
 ListFetcherTool - 列表页爬取工具
 
 将 ListFetcherAgent 封装为 Deer-Flow Tool
+支持多级缓存
 """
 import json
 import logging
@@ -13,8 +14,25 @@ from langchain.tools import tool
 
 from apps.crawler.agents.agents.fetcher_agents import ListFetcherAgent
 from apps.crawler.agents.schema import ExtractionStrategy
+from apps.crawler.tools.cache import (
+    MultiLevelCache,
+    CacheKeyGenerator,
+    get_default_cache,
+)
 
 logger = logging.getLogger(__name__)
+
+
+# 全局缓存实例
+_cache: Optional[MultiLevelCache] = None
+
+
+def _get_cache() -> MultiLevelCache:
+    """获取缓存实例"""
+    global _cache
+    if _cache is None:
+        _cache = get_default_cache()
+    return _cache
 
 
 @dataclass
@@ -46,11 +64,20 @@ class ListFetcherTool:
     列表页爬取工具
 
     封装 ListFetcherAgent，提供统一的 Tool 接口
+    支持多级缓存
     """
 
-    def __init__(self):
+    def __init__(self, cache: Optional[MultiLevelCache] = None):
         self.agent = ListFetcherAgent()
         self.logger = logging.getLogger(__name__)
+        self._cache = cache
+
+    @property
+    def cache(self) -> MultiLevelCache:
+        """获取缓存实例"""
+        if self._cache is not None:
+            return self._cache
+        return _get_cache()
 
     async def fetch(
         self,
@@ -74,6 +101,26 @@ class ListFetcherTool:
             if max_pages is not None:
                 strategy.max_pages = max_pages
 
+            # 生成缓存键
+            cache_key = CacheKeyGenerator.for_tender_list(
+                source=strategy.source_name,
+                page=max_pages or 1
+            )
+
+            # 尝试从缓存获取
+            if use_cache:
+                cached_items = await self.cache.get(cache_key)
+                if cached_items is not None:
+                    self.logger.info(f"Cache hit for {cache_key}")
+                    return ListFetchResult(
+                        items=cached_items,
+                        total_count=len(cached_items),
+                        pages_fetched=self._estimate_pages_fetched(cached_items, strategy),
+                        source_name=strategy.source_name,
+                        success=True,
+                        cache_hit=True,
+                    )
+
             self.logger.info(
                 f"Starting list fetch for source: {strategy.source_name}, "
                 f"max_pages: {strategy.max_pages}"
@@ -85,6 +132,10 @@ class ListFetcherTool:
             self.logger.info(
                 f"List fetch completed: {len(items)} items from {strategy.source_name}"
             )
+
+            # 存入缓存
+            if use_cache:
+                await self.cache.set(cache_key, items, ttl=60)
 
             return ListFetchResult(
                 items=items,
