@@ -11,6 +11,16 @@ from .opportunity import (
     TenderScoreFactors,
     OpportunityScoreLevel,
 )
+from .trends import (
+    TrendAnalyzer,
+    TenderData,
+    TrendAnalysisResult,
+    TimeSeriesAnalysis,
+    RegionDistribution,
+    IndustryHeatAnalysis,
+    AmountDistribution,
+    TendererActivity,
+)
 
 __all__ = [
     "TenderClassifier",
@@ -21,4 +31,12 @@ __all__ = [
     "TenderOpportunity",
     "TenderScoreFactors",
     "OpportunityScoreLevel",
+    "TrendAnalyzer",
+    "TenderData",
+    "TrendAnalysisResult",
+    "TimeSeriesAnalysis",
+    "RegionDistribution",
+    "IndustryHeatAnalysis",
+    "AmountDistribution",
+    "TendererActivity",
 ]
