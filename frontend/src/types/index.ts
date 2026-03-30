@@ -1,150 +1,138 @@
-/**
- * Tender types - Phase 4 Task 018
- */
-
-// Phase 10: PDF Content Extraction
-export interface TenderItem {
-  id: string;
-  name: string;
-  specification?: string;
-  quantity?: number;
-  unit?: string;
-  budget_unit_price?: number;
-  budget_total_price?: number;
-  category?: string;
-  technical_requirements?: string;
-}
-
-export interface TechnicalParameter {
-  id: string;
-  name: string;
-  value: string;
-  category?: string;
-  is_mandatory: boolean;
-}
-
-// Updated Tender interface with PDF extraction fields
+// 招标信息数据类型
 export interface Tender {
   id: string;
-  notice_id: string;
   title: string;
-  description?: string;
   tenderer: string;
-  budget?: number;
-  currency: string;
-  publish_date?: string;
-  deadline_date?: string;
-  region?: string;
-  industry?: string;
-  source_url?: string;
-  source_site?: string;
-  status: 'pending' | 'active' | 'closed' | 'expired';
-  created_at: string;
-  updated_at: string;
-  // Phase 10: PDF extraction fields
-  items?: TenderItem[];
-  technical_parameters?: TechnicalParameter[];
-  main_pdf_content?: string;
-  main_pdf_url?: string;
-  qualification_requirements?: string;
-  delivery_period?: string;
-  warranty_period?: string;
-  payment_terms?: string;
-  evaluation_method?: string;
-  extraction_method?: string;
-  extraction_confidence?: number;
+  region: string;
+  industry: string;
+  amount: number;
+  publishDate: string;
+  deadlineDate: string;
+  status: 'pending' | 'bidding' | 'closed';
+  classification?: ClassificationResult;
+  opportunityScore?: OpportunityScore;
 }
 
-export interface TenderListResponse {
-  count: number;
-  results: Tender[];
-  page: number;
-  page_size: number;
+// 分类结果
+export interface ClassificationResult {
+  tendererCategory: Category;
+  regionCategory: Category;
+  industryCategory: Category;
+  amountCategory: Category;
 }
 
-export interface TenderFilter {
-  status?: string;
-  region?: string;
-  industry?: string;
-  source_site?: string;
-  min_budget?: number;
-  max_budget?: number;
-  start_date?: string;
-  end_date?: string;
-  search?: string;
+export interface Category {
+  normalized: string;
+  type?: string;
+  zone?: string;
+  code?: string;
+  range?: string;
+  level?: string;
+  confidence?: number;
 }
 
-export interface CrawlTask {
-  id: number;
-  name: string;
-  source_url: string;
-  source_site: string;
-  status: 'pending' | 'running' | 'completed' | 'failed';
-  items_crawled: number;
-  error_message?: string;
-  started_at?: string;
-  completed_at?: string;
-  created_at: string;
-}
-
-export interface Statistics {
-  total_tenders: number;
-  active_tenders: number;
-  total_budget: number;
-  by_region: { region: string; count: number }[];
-  by_industry: { industry: string; count: number }[];
-  by_status: { status: string; count: number }[];
-  daily_trend: { date: string; count: number }[];
-}
-
-// Phase 5: Tenderer clustering
-export interface Tenderer {
-  id: string;
-  name: string;
-  normalized_name: string;
-  cluster_id?: number;
-  total_tenders: number;
-  total_budget: number;
-  active_tenders: number;
-  industries: { name: string; count: number }[];
-  regions: { name: string; count: number }[];
-  recent_tenders: Tender[];
-  created_at: string;
-  updated_at: string;
-}
-
-// Phase 8: Notification Service
-export interface Notification {
-  id: string;
-  type: 'tender_match' | 'price_alert' | 'system' | 'crawl_complete';
-  title: string;
-  message: string;
-  is_read: boolean;
-  data?: Record<string, unknown>;
-  created_at: string;
-}
-
-export interface NotificationPreferences {
-  email_enabled: boolean;
-  tender_match_enabled: boolean;
-  price_alert_enabled: boolean;
-  system_notifications_enabled: boolean;
-  crawl_complete_enabled: boolean;
-}
-
-// Phase 9: User preferences
-export interface UserPreferences {
-  id: string;
-  username: string;
-  email: string;
-  notification_preferences: NotificationPreferences;
-  default_region?: string;
-  default_industry?: string;
-  display_settings: {
-    theme: 'light' | 'dark' | 'auto';
-    language: 'zh' | 'en';
-    items_per_page: number;
+// 商机评分
+export interface OpportunityScore {
+  totalScore: number;
+  level: 'high' | 'medium' | 'low';
+  factors: {
+    amountScore: number;
+    competitionScore: number;
+    timelineScore: number;
+    relevanceScore: number;
+    historyScore: number;
   };
-  created_at: string;
-  updated_at: string;
+  recommendations: string[];
+  riskFactors: string[];
+}
+
+// 趋势分析结果
+export interface TrendAnalysis {
+  timeSeries: TimeSeriesData[];
+  regionDistribution: RegionData[];
+  industryHeat: IndustryData[];
+  amountDistribution: AmountData[];
+  insights: string[];
+  recommendations: string[];
+}
+
+export interface TimeSeriesData {
+  period: string;
+  count: number;
+  totalAmount: number;
+}
+
+export interface RegionData {
+  region: string;
+  count: number;
+  percentage: number;
+}
+
+export interface IndustryData {
+  industry: string;
+  count: number;
+  heat: number;
+}
+
+export interface AmountData {
+  range: string;
+  count: number;
+}
+
+// 仪表板概览数据
+export interface DashboardOverview {
+  totalCount: number;
+  todayCount: number;
+  totalAmount: number;
+  avgAmount: number;
+  highValueCount: number;
+  pendingCount: number;
+}
+
+// 分类统计
+export interface ClassificationSummary {
+  byRegion: Record<string, number>;
+  byIndustry: Record<string, number>;
+  byAmount: Record<string, number>;
+  byTendererType: Record<string, number>;
+}
+
+// 实时消息
+export interface RealtimeMessage {
+  id: string;
+  type: 'new_tender' | 'high_value' | 'deadline_warning' | 'system';
+  title: string;
+  content: string;
+  timestamp: string;
+  read: boolean;
+  data?: Tender;
+}
+
+// API 响应类型
+export interface ApiResponse<T> {
+  status: 'success' | 'error';
+  data?: T;
+  message?: string;
+  error?: string;
+}
+
+// 分页类型
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+// 筛选条件
+export interface TenderFilters {
+  region?: string;
+  industry?: string;
+  status?: string;
+  minAmount?: number;
+  maxAmount?: number;
+  startDate?: string;
+  endDate?: string;
+  keyword?: string;
 }
