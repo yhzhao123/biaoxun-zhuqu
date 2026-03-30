@@ -15,15 +15,6 @@ const Classification = lazy(() => import('./pages/classification'));
 const Realtime = lazy(() => import('./pages/realtime'));
 const Settings = lazy(() => import('./pages/settings'));
 
-// Phase 4 - Legacy Pages (Keep for compatibility)
-const DashboardPage = lazy(() => import('./pages/DashboardPage'));
-const TendersPage = lazy(() => import('./pages/TendersPage'));
-const TendererProfilePage = lazy(() => import('./pages/TendererProfilePage'));
-const UserPreferencesPage = lazy(() => import('./pages/UserPreferencesPage'));
-const CrawlerConfigPage = lazy(() => import('./pages/CrawlerConfigPage'));
-const LLMConfigPage = lazy(() => import('./pages/LLMConfigPage'));
-const AnalysisChatPage = lazy(() => import('./pages/AnalysisChatPage'));
-
 const PageLoader: React.FC = () => (
   <div className="flex justify-center items-center h-64">
     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -48,15 +39,6 @@ const App: React.FC = () => {
                 <Route path="realtime" element={<Realtime />} />
                 <Route path="settings" element={<Settings />} />
               </Route>
-
-              {/* Phase 4 - Legacy routes (redirect or keep) */}
-              <Route path="/legacy" element={<DashboardPage />} />
-              <Route path="/legacy/tenders" element={<TendersPage />} />
-              <Route path="/legacy/tenderers/:id" element={<TendererProfilePage />} />
-              <Route path="/legacy/preferences" element={<UserPreferencesPage />} />
-              <Route path="/legacy/crawler" element={<CrawlerConfigPage />} />
-              <Route path="/legacy/llm" element={<LLMConfigPage />} />
-              <Route path="/legacy/chat" element={<AnalysisChatPage />} />
             </Routes>
           </Suspense>
         </BrowserRouter>
