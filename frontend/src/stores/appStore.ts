@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Tender, TenderFilters, RealtimeMessage } from '@/types';
+import { Tender, TenderFilters, RealtimeMessage } from '../types';
 
 interface AppState {
   // 全局状态
@@ -20,7 +20,7 @@ interface AppState {
   addMessage: (message: RealtimeMessage) => void;
   markMessageAsRead: (id: string) => void;
   clearMessages: () => void;
-  unreadCount: () => number;
+  unreadCount: number;
   
   // 加载状态
   setLoading: (loading: boolean) => void;
@@ -44,31 +44,30 @@ export const useAppStore = create<AppState>((set, get) => ({
   selectedTender: null,
   filters: initialFilters,
   messages: [],
-  
+  unreadCount: 0,
+
   setSelectedTender: (tender) => set({ selectedTender: tender }),
-  
+
   setFilters: (newFilters) => set((state) => ({
     filters: { ...state.filters, ...newFilters },
   })),
-  
+
   resetFilters: () => set({ filters: initialFilters }),
-  
+
   addMessage: (message) => set((state) => ({
     messages: [message, ...state.messages],
+    unreadCount: state.messages.filter((msg) => !msg.read).length + 1,
   })),
-  
+
   markMessageAsRead: (id) => set((state) => ({
     messages: state.messages.map((msg) =>
       msg.id === id ? { ...msg, read: true } : msg
     ),
+    unreadCount: state.messages.filter((msg) => msg.id !== id && !msg.read).length,
   })),
-  
-  clearMessages: () => set({ messages: [] }),
-  
-  unreadCount: () => {
-    return get().messages.filter((msg) => !msg.read).length;
-  },
-  
+
+  clearMessages: () => set({ messages: [], unreadCount: 0 }),
+
   setLoading: (loading) => set({ isLoading: loading }),
   setError: (error) => set({ error }),
 }));

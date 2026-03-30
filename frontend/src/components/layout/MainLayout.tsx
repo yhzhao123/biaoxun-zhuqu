@@ -18,7 +18,7 @@ const { Header, Sider, Content } = Layout;
 const MainLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const unreadCount = useAppStore((state) => state.unreadCount());
+  const unreadCount = useAppStore((state) => state.unreadCount);
   
   const menuItems = [
     { key: '/', icon: <DashboardOutlined />, label: '仪表板' },
@@ -26,7 +26,7 @@ const MainLayout: React.FC = () => {
     { key: '/opportunity', icon: <BarChartOutlined />, label: '商机分析' },
     { key: '/trends', icon: <LineChartOutlined />, label: '趋势分析' },
     { key: '/classification', icon: <AppstoreOutlined />, label: '数据分类' },
-    { key: '/realtime', icon: <BellOutlined />, label: '实时推送', badge: unreadCount() },
+    { key: '/realtime', icon: <BellOutlined />, label: '实时推送', badge: unreadCount },
     { key: '/settings', icon: <SettingOutlined />, label: '设置' },
   ];
   
@@ -66,7 +66,7 @@ const MainLayout: React.FC = () => {
           items={menuItems.map(item => ({
             key: item.key,
             icon: item.icon,
-            label: item.badge ? (
+            label: item.badge > 0 ? (
               <Space>
                 {item.label}
                 <Badge count={item.badge} size="small" />
@@ -85,7 +85,7 @@ const MainLayout: React.FC = () => {
           </h2>
           
           <Space size={24}>
-            <Badge count={unreadCount()} size="small">
+            <Badge count={unreadCount} size="small">
               <BellOutlined className="text-xl cursor-pointer" onClick={() => navigate('/realtime')} />
             </Badge>
             
